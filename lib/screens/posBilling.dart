@@ -7,6 +7,7 @@ import 'customer.dart';
 import 'Analytics.dart';
 import 'delivery.dart';
 import 'dashboard.dart';
+import '../services/dashboard_repository.dart';
 import '../services/pos_repository.dart';
 
 class PosBillingScreen extends StatefulWidget {
@@ -17,10 +18,12 @@ class PosBillingScreen extends StatefulWidget {
 }
 
 class _PosBillingScreenState extends State<PosBillingScreen> {
+  final DashboardRepository _dashboardRepository = DashboardRepository();
   final PosRepository _repository = PosRepository();
   final TextEditingController _search = TextEditingController();
 
   List<PosProduct> _products = const [];
+  StoreInfo? _storeInfo;
   bool _loading = true;
   String? _error;
 
@@ -44,8 +47,12 @@ class _PosBillingScreenState extends State<PosBillingScreen> {
 
     try {
       final products = await _repository.fetchProducts();
+      final dash = await _dashboardRepository.fetch();
       if (!mounted) return;
-      setState(() => _products = products);
+      setState(() {
+        _products = products;
+        _storeInfo = dash.storeInfo;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -73,6 +80,7 @@ class _PosBillingScreenState extends State<PosBillingScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       drawer: DashboardDrawer(
+        store: _storeInfo,
         onClose: () => Navigator.of(context).pop(),
         onOpenPosBilling: () => Navigator.of(context).pop(),
         onOpenDashboard: () {
@@ -114,7 +122,7 @@ class _PosBillingScreenState extends State<PosBillingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _Header(accent: accent),
+            _Header(accent: accent, store: _storeInfo),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _load,
@@ -160,9 +168,10 @@ class _PosBillingScreenState extends State<PosBillingScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.accent});
+  const _Header({required this.accent, required this.store});
 
   final Color accent;
+  final StoreInfo? store;
 
   @override
   Widget build(BuildContext context) {
@@ -190,9 +199,9 @@ class _Header extends StatelessWidget {
           CircleAvatar(
             radius: 16,
             backgroundColor: accent,
-            child: const Text(
-              'ZA',
-              style: TextStyle(
+            child: Text(
+              _initials(store?.name ?? 'Store'),
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,
               ),
@@ -624,4 +633,10 @@ String _formatPrice(double value) {
   if (value >= 1000) return '${(value / 1000).toStringAsFixed(1)}k';
   if (value == value.roundToDouble()) return value.toStringAsFixed(0);
   return value.toStringAsFixed(2);
+}
+
+String _initials(String value) {
+  final parts = value.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
+  final letters = parts.take(2).map((p) => p.characters.first).join();
+  return letters.isEmpty ? 'ST' : letters.toUpperCase();
 }

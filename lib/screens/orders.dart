@@ -713,7 +713,10 @@ class _OrderCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
                 order.id,
@@ -723,14 +726,11 @@ class _OrderCard extends StatelessWidget {
                   fontSize: 16,
                 ),
               ),
-              const Spacer(),
               channelPill,
-              const SizedBox(width: 6),
               _Pill(
                 label: _statusLabel(order.status),
                 color: const Color(0xFFF4C16C),
               ),
-              const SizedBox(width: 6),
               _Pill(
                 label: order.paymentMethod,
                 color: const Color(0xFFDBE5FF),
@@ -739,38 +739,58 @@ class _OrderCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const Icon(
-                Icons.person_outline,
-                size: 18,
-                color: Color(0xFF7F758B),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.person_outline,
+                    size: 18,
+                    color: Color(0xFF7F758B),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    order.customer,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF4A3A59),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 6),
-              Text(
-                order.customer,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF4A3A59),
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.inventory_2_outlined,
+                    size: 18,
+                    color: Color(0xFF7F758B),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${order.items} items',
+                    style: const TextStyle(color: Color(0xFF7F758B)),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              const Icon(
-                Icons.inventory_2_outlined,
-                size: 18,
-                color: Color(0xFF7F758B),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '${order.items} items',
-                style: const TextStyle(color: Color(0xFF7F758B)),
-              ),
-              const SizedBox(width: 12),
-              const Icon(Icons.access_time, size: 18, color: Color(0xFF7F758B)),
-              const SizedBox(width: 6),
-              Text(
-                _timeAgo(order.createdAt),
-                style: const TextStyle(color: Color(0xFF7F758B)),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.access_time,
+                    size: 18,
+                    color: Color(0xFF7F758B),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _timeAgo(order.createdAt),
+                    style: const TextStyle(color: Color(0xFF7F758B)),
+                  ),
+                ],
               ),
             ],
           ),

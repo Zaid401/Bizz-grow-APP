@@ -90,6 +90,31 @@ class ProductsRepository {
     return list.map(_toProduct).toList();
   }
 
+  Future<void> updateStock({
+    required String productId,
+    required int stock,
+  }) async {
+    const idColumns = ['id', 'product_id'];
+    const stockColumns = ['stock_quantity', 'stock', 'qty', 'quantity'];
+
+    for (final stockCol in stockColumns) {
+      for (final idCol in idColumns) {
+        try {
+          await _client
+              .from('products')
+              .update({stockCol: stock})
+              .eq(idCol, productId);
+          return;
+        } on PostgrestException catch (e) {
+          if (e.code == '42703') continue;
+          rethrow;
+        }
+      }
+    }
+
+    throw Exception('Unable to update stock: column not found.');
+  }
+
   Future<String?> _resolveStoreId({String? storeIdOverride}) async {
     if (storeIdOverride != null && storeIdOverride.isNotEmpty) {
       return storeIdOverride;
@@ -146,7 +171,12 @@ class ProductsRepository {
         .toString();
     final priceRaw =
         row['price'] ?? row['mrp'] ?? row['sale_price'] ?? row['amount'] ?? 0;
-    final stockRaw = row['stock'] ?? row['quantity'] ?? row['qty'] ?? 0;
+    final stockRaw =
+        row['stock'] ??
+        row['stock_quantity'] ??
+        row['quantity'] ??
+        row['qty'] ??
+        0;
     final status = (row['status'] ?? row['state'] ?? 'active').toString();
     final image =
         (row['image'] ?? row['image_url'] ?? row['thumbnail'] ?? row['photo'])
@@ -161,8 +191,8 @@ class ProductsRepository {
         ? lowThresholdRaw.toInt()
         : int.tryParse(lowThresholdRaw.toString()) ?? 5;
 
-    final isOutOfStock = stock <= 0 || status.toLowerCase() == 'out_of_stock';
-    final isLowStock = !isOutOfStock && stock <= lowThreshold;
+    final isOutOfStock = stock <= 0;
+    final isLowStock = stock > 0 && stock <= lowThreshold;
 
     return ProductItem(
       id: id,

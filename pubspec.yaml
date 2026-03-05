@@ -14,7 +14,9 @@ dependencies:
   flutter:
     sdk: flutter
   supabase_flutter: ^2.0.0
-  flutter_dotenv: ^5.1.0
+  flutter_dotenv: ^6.0.0
+  image_picker: ^1.0.7
+  http: ^1.2.0
 
  
   cupertino_icons: ^1.0.8
