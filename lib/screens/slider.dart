@@ -69,29 +69,33 @@ class DashboardDrawer extends StatelessWidget {
       String label, {
       bool active = false,
       bool pill = false,
+      bool disabled = false,
       VoidCallback? onTap,
     }) {
+      final itemTextColor = disabled
+          ? Colors.white54
+          : active
+          ? Colors.black87
+          : Colors.white;
+      final itemIconColor = disabled
+          ? Colors.white54
+          : active
+          ? Colors.black87
+          : Colors.white;
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         child: Container(
           decoration: BoxDecoration(
             color: active ? highlight : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
-            border: active
-                ? Border.all(color: Colors.transparent)
-                : Border.all(color: const Color(0xFF40245D)),
           ),
           child: ListTile(
             dense: true,
-            leading: Icon(
-              icon,
-              color: active ? Colors.black87 : Colors.white,
-              size: 20,
-            ),
+            leading: Icon(icon, color: itemIconColor, size: 20),
             title: Text(
               label,
               style: TextStyle(
-                color: active ? Colors.black87 : Colors.white,
+                color: itemTextColor,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -115,7 +119,7 @@ class DashboardDrawer extends StatelessWidget {
                     ),
                   )
                 : null,
-            onTap: onTap ?? onClose,
+            onTap: disabled ? null : (onTap ?? onClose),
           ),
         ),
       );
@@ -255,6 +259,7 @@ class DashboardDrawer extends StatelessWidget {
                 Icons.people_alt_outlined,
                 'Customers',
                 active: activeCustomers,
+                disabled: true,
                 onTap: () {
                   Navigator.of(context).pop();
                   onOpenCustomers?.call();

@@ -15,6 +15,7 @@ import 'Analytics.dart';
 import 'delivery.dart';
 import '../services/products_repository.dart';
 import '../services/dashboard_repository.dart';
+import '../widgets/more_actions_sheet.dart';
 
 final String _supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
 
@@ -217,6 +218,34 @@ class _ProductsScreenState extends State<ProductsScreen> {
             ).push(MaterialPageRoute(builder: (_) => const OrdersScreen()));
           } else if (index == 2) {
             // stay
+          } else if (index == 4) {
+            showMoreActionsSheet(
+              context: context,
+              onOpenDashboard: () {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const DashboardScreen()),
+                );
+              },
+              onOpenOrders: () {
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const OrdersScreen()));
+              },
+              onOpenProducts: () {},
+              onOpenPosBilling: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PosBillingScreen()),
+                );
+              },
+              onOpenAnalytics: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
+                );
+              },
+              activeModule: MoreActionsModule.products,
+              onAddProduct: () => _showAddProductSheet(context, accent),
+              onOpenAiUpload: () => _showAddProductSheet(context, accent),
+            );
           }
         },
         items: const [

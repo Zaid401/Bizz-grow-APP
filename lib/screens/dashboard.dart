@@ -8,6 +8,7 @@ import 'products.dart';
 import 'Analytics.dart';
 import 'customer.dart';
 import 'delivery.dart';
+import '../widgets/more_actions_sheet.dart';
 
 enum SalesRange { week, month, year }
 
@@ -118,11 +119,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         activeDashboard: true,
       ),
       bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
         currentIndex: 0,
         selectedItemColor: accent,
         unselectedItemColor: const Color(0xFF8B7F95),
         onTap: (index) {
-          if (index == 1) {
+          if (index == 0) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const DashboardScreen()),
+            );
+          } else if (index == 1) {
             Navigator.of(
               context,
             ).push(MaterialPageRoute(builder: (_) => const OrdersScreen()));
@@ -130,6 +136,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Navigator.of(
               context,
             ).push(MaterialPageRoute(builder: (_) => const ProductsScreen()));
+          } else if (index == 4) {
+            showMoreActionsSheet(
+              context: context,
+              onOpenDashboard: () {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const DashboardScreen()),
+                );
+              },
+              onOpenOrders: () {
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const OrdersScreen()));
+              },
+              onOpenProducts: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ProductsScreen()),
+                );
+              },
+              onOpenPosBilling: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PosBillingScreen()),
+                );
+              },
+              onOpenAnalytics: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
+                );
+              },
+              activeModule: MoreActionsModule.dashboard,
+              onOpenAiUpload: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ProductsScreen()),
+                );
+              },
+            );
           }
         },
         items: const [
@@ -286,25 +327,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             'Your store is ready for business! Start by adding products.',
             style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
           ),
-          const SizedBox(height: 14),
-          SizedBox(
-            height: 44,
-            child: ElevatedButton.icon(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: accent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              icon: const Icon(Icons.add_box_outlined),
-              label: const Text(
-                'Add Products with AI',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -453,9 +475,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFF9F5FB),
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: const Color(0xFFE3DFEA)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -934,6 +962,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _todaySummary(double radius, Color accent, DashboardData data) {
+    final peak = _computePeakHour(data.recentOrders);
     final items = [
       _summaryTile(
         "Today's Revenue",
@@ -961,13 +990,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const Color(0xFF9B59B6),
       ),
       _summaryTile(
-        'Customers',
-        '${data.customersCount}',
-        data.customersCount == 0
-            ? 'No customers yet'
-            : 'Customers in your store',
-        Icons.groups_outlined,
-        const Color(0xFFEB8C34),
+        'Peak Hour',
+        peak.range,
+        peak.count == 0 ? 'No orders yet' : '${peak.count} orders in this slot',
+        Icons.access_time,
+        const Color(0xFFF29D38),
       ),
     ];
     return Container(
@@ -988,7 +1015,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Text(
                   "Today's Summary",
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: Color(0xFF241132),
                   ),
@@ -996,7 +1023,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               Text(
                 'Auto-updates every 30s',
-                style: TextStyle(fontSize: 12, color: Color(0xFF7F758B)),
+                style: TextStyle(fontSize: 11, color: Color(0xFF8C8497)),
               ),
             ],
           ),
@@ -1026,11 +1053,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Color tint,
   ) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE3DFEA)),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1042,9 +1075,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF4A3A59),
+                    color: Color(0xFF7F758B),
                   ),
                 ),
               ),
@@ -1059,7 +1092,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Text(
             value,
             style: const TextStyle(
-              fontSize: 18,
+              fontSize: 19,
               fontWeight: FontWeight.w800,
               color: Colors.black,
             ),
@@ -1067,7 +1100,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 6),
           Text(
             subtitle,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF7F758B)),
+            style: const TextStyle(fontSize: 12, color: Color(0xFF8C8497)),
           ),
         ],
       ),
@@ -1383,6 +1416,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return months[month - 1];
   }
 
+  _PeakHour _computePeakHour(List<RecentOrder> orders) {
+    if (orders.isEmpty) return const _PeakHour(range: '--', count: 0);
+
+    final counts = <int, int>{};
+    for (final order in orders) {
+      final hour = order.createdAt.toLocal().hour;
+      counts[hour] = (counts[hour] ?? 0) + 1;
+    }
+
+    final peak = counts.entries.reduce((a, b) => a.value >= b.value ? a : b);
+
+    final startHour = peak.key;
+    final endHour = (startHour + 3) % 24;
+    final range = '${_formatHour(startHour)} - ${_formatHour(endHour)}';
+
+    return _PeakHour(range: range, count: peak.value);
+  }
+
+  String _formatHour(int hour) {
+    final normalized = hour % 24;
+    final suffix = normalized >= 12 ? 'PM' : 'AM';
+    final hour12 = normalized % 12 == 0 ? 12 : normalized % 12;
+    return '$hour12 $suffix';
+  }
+
   String _initials(String value) {
     final parts = value.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
     final letters = parts.map((p) => p[0]).take(2).join();
@@ -1656,4 +1714,11 @@ class _InfoRow extends StatelessWidget {
       ],
     );
   }
+}
+
+class _PeakHour {
+  const _PeakHour({required this.range, required this.count});
+
+  final String range;
+  final int count;
 }

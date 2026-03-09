@@ -1,12 +1,13 @@
 import 'package:postgrest/postgrest.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../screens/orders.dart' show OrderChannel, OrderStatus;
+import 'package:bizz_grow/models/order_types.dart';
 
 class OrderRecord {
   const OrderRecord({
     required this.id,
     required this.customer,
+    required this.phone,
     required this.items,
     required this.amount,
     required this.channel,
@@ -17,6 +18,7 @@ class OrderRecord {
 
   final String id;
   final String customer;
+  final String phone;
   final int items;
   final double amount;
   final OrderChannel channel;
@@ -145,6 +147,14 @@ class OrdersRepository {
         .toString();
     final customer = (row['customer_name'] ?? row['name'] ?? 'Customer')
         .toString();
+    final phone =
+        (row['customer_phone'] ??
+                row['phone'] ??
+                row['phone_number'] ??
+                row['mobile'] ??
+                row['mobile_no'] ??
+                '')
+            .toString();
     final itemsRaw =
         row['items'] ??
         row['items_count'] ??
@@ -188,6 +198,7 @@ class OrdersRepository {
     return OrderRecord(
       id: id.isEmpty ? '—' : id,
       customer: customer.isEmpty ? 'Customer' : customer,
+      phone: phone.isEmpty ? '—' : phone,
       items: _asInt(itemsRaw),
       amount: _asDouble(amountRaw),
       channel: _mapChannel(channelRaw),
@@ -217,6 +228,18 @@ class OrdersRepository {
   }
 
   int _asInt(dynamic value) {
+    if (value is List) {
+      int total = 0;
+      for (final item in value) {
+        if (item is Map) {
+          final qty = item['qty'] ?? item['quantity'] ?? item['count'];
+          total += _asInt(qty);
+        } else if (item is num) {
+          total += item.toInt();
+        }
+      }
+      return total;
+    }
     if (value is int) return value;
     if (value is double) return value.round();
     if (value is num) return value.toInt();

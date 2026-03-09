@@ -9,10 +9,18 @@ import 'Analytics.dart';
 import 'delivery.dart';
 import '../services/orders_repository.dart';
 import '../services/dashboard_repository.dart';
+import '../widgets/more_actions_sheet.dart';
+import '../widgets/order_detail_screen.dart';
+import 'package:bizz_grow/models/order_types.dart';
 
-enum OrderChannel { all, online, walkIn }
-
-enum OrderStatus { all, pending, confirmed, delivering, delivered }
+enum OrderTimeline {
+  allTime,
+  today,
+  yesterday,
+  last7Days,
+  last30Days,
+  thisMonth,
+}
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -24,6 +32,7 @@ class OrdersScreen extends StatefulWidget {
 class _OrdersScreenState extends State<OrdersScreen> {
   OrderChannel _selectedChannel = OrderChannel.all;
   OrderStatus _selectedStatus = OrderStatus.all;
+  OrderTimeline _selectedTimeline = OrderTimeline.today;
 
   final OrdersRepository _repository = OrdersRepository();
   final DashboardRepository _dashboardRepository = DashboardRepository();
@@ -62,7 +71,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const bg = Color(0xFFF7F5FB);
+    const bg = Colors.white;
     const accent = Color(0xFF4D0E7F);
     const soft = Color(0xFFF0EAF7);
     const textPrimary = Color(0xFF241132);
@@ -73,7 +82,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
           _selectedChannel == OrderChannel.all || o.channel == _selectedChannel;
       final statusOk =
           _selectedStatus == OrderStatus.all || o.status == _selectedStatus;
-      return channelOk && statusOk;
+      final timelineOk = _matchesTimeline(o.createdAt);
+      return channelOk && statusOk && timelineOk;
     }).toList();
 
     final totalOrders = _orders.length;
@@ -147,6 +157,37 @@ class _OrdersScreenState extends State<OrdersScreen> {
             Navigator.of(
               context,
             ).push(MaterialPageRoute(builder: (_) => const ProductsScreen()));
+          } else if (index == 4) {
+            showMoreActionsSheet(
+              context: context,
+              onOpenDashboard: () {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const DashboardScreen()),
+                );
+              },
+              onOpenOrders: () {},
+              onOpenProducts: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ProductsScreen()),
+                );
+              },
+              onOpenPosBilling: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PosBillingScreen()),
+                );
+              },
+              onOpenAnalytics: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
+                );
+              },
+              activeModule: MoreActionsModule.orders,
+              onOpenAiUpload: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ProductsScreen()),
+                );
+              },
+            );
           }
         },
         items: const [
@@ -182,7 +223,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 const SizedBox(height: 12),
                 const _Title(),
                 const SizedBox(height: 16),
-                _Filters(accent: accent),
+                _Filters(
+                  accent: accent,
+                  selectedTimeline: _timelineLabel(_selectedTimeline),
+                  onTimelineTap: _showTimelineMenu,
+                ),
                 const SizedBox(height: 16),
                 _StatsGrid(
                   accent: accent,
@@ -229,6 +274,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
                               textPrimary: textPrimary,
                               textSecondary: textSecondary,
                               soft: soft,
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        OrderDetailScreen(order: order),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                         )
@@ -240,6 +293,80 @@ class _OrdersScreenState extends State<OrdersScreen> {
         ),
       ),
     );
+  }
+
+  String _timelineLabel(OrderTimeline timeline) {
+    switch (timeline) {
+      case OrderTimeline.allTime:
+        return 'All Time';
+      case OrderTimeline.today:
+        return 'Today';
+      case OrderTimeline.yesterday:
+        return 'Yesterday';
+      case OrderTimeline.last7Days:
+        return 'Last 7 Days';
+      case OrderTimeline.last30Days:
+        return 'Last 30 Days';
+      case OrderTimeline.thisMonth:
+        return 'This Month';
+    }
+  }
+
+  bool _matchesTimeline(DateTime createdAt) {
+    if (_selectedTimeline == OrderTimeline.allTime) return true;
+
+    final local = createdAt.toLocal();
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    switch (_selectedTimeline) {
+      case OrderTimeline.today:
+        return local.isAfter(todayStart) || local.isAtSameMomentAs(todayStart);
+      case OrderTimeline.yesterday:
+        final yesterdayStart = todayStart.subtract(const Duration(days: 1));
+        return (local.isAfter(yesterdayStart) ||
+                local.isAtSameMomentAs(yesterdayStart)) &&
+            local.isBefore(todayStart);
+      case OrderTimeline.last7Days:
+        final start = todayStart.subtract(const Duration(days: 6));
+        return local.isAfter(start) || local.isAtSameMomentAs(start);
+      case OrderTimeline.last30Days:
+        final start = todayStart.subtract(const Duration(days: 29));
+        return local.isAfter(start) || local.isAtSameMomentAs(start);
+      case OrderTimeline.thisMonth:
+        return local.year == now.year && local.month == now.month;
+      case OrderTimeline.allTime:
+        return true;
+    }
+  }
+
+  void _showTimelineMenu(TapDownDetails details) async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(details.globalPosition, details.globalPosition),
+      Offset.zero & overlay.size,
+    );
+
+    final selected = await showMenu<OrderTimeline>(
+      context: context,
+      position: position,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      items: OrderTimeline.values
+          .map(
+            (timeline) => PopupMenuItem<OrderTimeline>(
+              value: timeline,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: _TimelineMenuItem(
+                label: _timelineLabel(timeline),
+                selected: _selectedTimeline == timeline,
+              ),
+            ),
+          )
+          .toList(),
+    );
+
+    if (selected == null || selected == _selectedTimeline) return;
+    setState(() => _selectedTimeline = selected);
   }
 }
 
@@ -320,16 +447,22 @@ class _Title extends StatelessWidget {
 }
 
 class _Filters extends StatelessWidget {
-  const _Filters({required this.accent});
+  const _Filters({
+    required this.accent,
+    required this.selectedTimeline,
+    required this.onTimelineTap,
+  });
 
   final Color accent;
+  final String selectedTimeline;
+  final void Function(TapDownDetails details) onTimelineTap;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         _FilterButton(
-          label: 'Today',
+          label: selectedTimeline,
           icon: Icons.today_outlined,
           accent: accent,
           trailing: const Icon(
@@ -337,6 +470,7 @@ class _Filters extends StatelessWidget {
             size: 18,
             color: Color(0xFF4A3A59),
           ),
+          onTapDown: onTimelineTap,
         ),
         const SizedBox(width: 10),
         _FilterButton(
@@ -355,36 +489,70 @@ class _FilterButton extends StatelessWidget {
     required this.icon,
     required this.accent,
     this.trailing,
+    this.onTapDown,
   });
 
   final String label;
   final IconData icon;
   final Color accent;
   final Widget? trailing;
+  final GestureTapDownCallback? onTapDown;
 
   @override
   Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTapDown: onTapDown,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE3DFEA)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: const Color(0xFF4A3A59), size: 18),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFF241132),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (trailing != null) ...[const SizedBox(width: 4), trailing!],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TimelineMenuItem extends StatelessWidget {
+  const _TimelineMenuItem({required this.label, required this.selected});
+
+  final String label;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = selected ? const Color(0xFFF2ECFA) : Colors.white;
+    final fg = selected ? const Color(0xFF4D0E7F) : const Color(0xFF241132);
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: bg,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE3DFEA)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: const Color(0xFF4A3A59), size: 18),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF241132),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (trailing != null) ...[const SizedBox(width: 4), trailing!],
-        ],
+      child: Text(
+        label,
+        style: TextStyle(fontWeight: FontWeight.w600, color: fg),
       ),
     );
   }
@@ -685,6 +853,7 @@ class _OrderCard extends StatelessWidget {
     required this.textPrimary,
     required this.textSecondary,
     required this.soft,
+    this.onTap,
   });
 
   final OrderRecord order;
@@ -692,6 +861,7 @@ class _OrderCard extends StatelessWidget {
   final Color textPrimary;
   final Color textSecondary;
   final Color soft;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -703,122 +873,127 @@ class _OrderCard extends StatelessWidget {
             textColor: const Color(0xFF0F5132),
           );
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE3DFEA)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(
-                order.id,
-                style: TextStyle(
-                  color: accent,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                ),
-              ),
-              channelPill,
-              _Pill(
-                label: _statusLabel(order.status),
-                color: const Color(0xFFF4C16C),
-              ),
-              _Pill(
-                label: order.paymentMethod,
-                color: const Color(0xFFDBE5FF),
-                textColor: const Color(0xFF4A3A59),
-              ),
-            ],
+        child: Ink(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE3DFEA)),
           ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.person_outline,
-                    size: 18,
-                    color: Color(0xFF7F758B),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    order.customer,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF4A3A59),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    channelPill,
+                    _Pill(
+                      label: _statusLabel(order.status),
+                      color: const Color(0xFFF4C16C),
                     ),
-                  ),
-                ],
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.inventory_2_outlined,
-                    size: 18,
-                    color: Color(0xFF7F758B),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${order.items} items',
-                    style: const TextStyle(color: Color(0xFF7F758B)),
-                  ),
-                ],
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.access_time,
-                    size: 18,
-                    color: Color(0xFF7F758B),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    _timeAgo(order.createdAt),
-                    style: const TextStyle(color: Color(0xFF7F758B)),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Text(
-                '₹${order.amount}',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.black,
+                    _Pill(
+                      label: order.paymentMethod,
+                      color: const Color(0xFFDBE5FF),
+                      textColor: const Color(0xFF4A3A59),
+                    ),
+                  ],
                 ),
-              ),
-              const Spacer(),
-              _IconButton(icon: Icons.phone_outlined),
-              const SizedBox(width: 12),
-              _IconButton(icon: Icons.chat_bubble_outline),
-              const SizedBox(width: 12),
-              _IconButton(icon: Icons.remove_red_eye_outlined),
-            ],
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.person_outline,
+                          size: 18,
+                          color: Color(0xFF7F758B),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          order.customer,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF4A3A59),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.inventory_2_outlined,
+                          size: 18,
+                          color: Color(0xFF7F758B),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${order.items} items',
+                          style: const TextStyle(color: Color(0xFF7F758B)),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.access_time,
+                          size: 18,
+                          color: Color(0xFF7F758B),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _timeAgo(order.createdAt),
+                          style: const TextStyle(color: Color(0xFF7F758B)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Text(
+                      '₹${order.amount}',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const Spacer(),
+                    _IconButton(icon: Icons.phone_outlined),
+                    const SizedBox(width: 12),
+                    _IconButton(icon: Icons.chat_bubble_outline),
+                    const SizedBox(width: 12),
+                    _IconButton(icon: Icons.remove_red_eye_outlined),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _dateLabel(order.createdAt),
+                  style: const TextStyle(
+                    color: Color(0xFF7F758B),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            _dateLabel(order.createdAt),
-            style: const TextStyle(color: Color(0xFF7F758B), fontSize: 12),
-          ),
-        ],
+        ),
       ),
     );
   }

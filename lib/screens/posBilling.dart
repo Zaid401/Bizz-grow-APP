@@ -9,6 +9,7 @@ import 'delivery.dart';
 import 'dashboard.dart';
 import '../services/dashboard_repository.dart';
 import '../services/pos_repository.dart';
+import '../widgets/more_actions_sheet.dart';
 
 class PosBillingScreen extends StatefulWidget {
   const PosBillingScreen({super.key});
@@ -602,6 +603,37 @@ class _BottomNav extends StatelessWidget {
           Navigator.of(
             context,
           ).push(MaterialPageRoute(builder: (_) => const ProductsScreen()));
+        } else if (index == 4) {
+          showMoreActionsSheet(
+            context: context,
+            onOpenDashboard: () {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const DashboardScreen()),
+              );
+            },
+            onOpenOrders: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const OrdersScreen()));
+            },
+            onOpenProducts: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const ProductsScreen()));
+            },
+            onOpenPosBilling: () {},
+            onOpenAnalytics: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
+              );
+            },
+            activeModule: MoreActionsModule.posBilling,
+            onOpenAiUpload: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const ProductsScreen()));
+            },
+          );
         }
       },
       items: const [

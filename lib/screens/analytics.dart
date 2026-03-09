@@ -10,6 +10,8 @@ import 'delivery.dart';
 import '../services/dashboard_repository.dart';
 import '../services/orders_repository.dart';
 import '../services/products_repository.dart';
+import '../widgets/more_actions_sheet.dart';
+import 'package:bizz_grow/models/order_types.dart';
 
 enum AnalyticsRange { week, month, year }
 
@@ -185,6 +187,37 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             Navigator.of(
               context,
             ).push(MaterialPageRoute(builder: (_) => const ProductsScreen()));
+          } else if (index == 4) {
+            showMoreActionsSheet(
+              context: context,
+              onOpenDashboard: () {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const DashboardScreen()),
+                );
+              },
+              onOpenOrders: () {
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const OrdersScreen()));
+              },
+              onOpenProducts: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ProductsScreen()),
+                );
+              },
+              onOpenPosBilling: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PosBillingScreen()),
+                );
+              },
+              onOpenAnalytics: () {},
+              activeModule: MoreActionsModule.analytics,
+              onOpenAiUpload: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ProductsScreen()),
+                );
+              },
+            );
           }
         },
         items: const [

@@ -9,6 +9,7 @@ import 'Analytics.dart';
 import 'slider.dart';
 import '../services/delivery_repository.dart';
 import '../services/dashboard_repository.dart';
+import '../widgets/more_actions_sheet.dart';
 
 enum DeliveryFilter { all, pending, inTransit, delivered }
 
@@ -164,6 +165,41 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             Navigator.of(
               context,
             ).push(MaterialPageRoute(builder: (_) => const ProductsScreen()));
+          } else if (index == 4) {
+            showMoreActionsSheet(
+              context: context,
+              onOpenDashboard: () {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const DashboardScreen()),
+                );
+              },
+              onOpenOrders: () {
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const OrdersScreen()));
+              },
+              onOpenProducts: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ProductsScreen()),
+                );
+              },
+              onOpenPosBilling: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PosBillingScreen()),
+                );
+              },
+              onOpenAnalytics: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
+                );
+              },
+              activeModule: MoreActionsModule.vendors,
+              onOpenAiUpload: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ProductsScreen()),
+                );
+              },
+            );
           }
         },
         items: const [
