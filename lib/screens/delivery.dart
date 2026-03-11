@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'dashboard.dart';
 import 'orders.dart';
@@ -7,9 +8,13 @@ import 'posBilling.dart';
 import 'customer.dart';
 import 'Analytics.dart';
 import 'slider.dart';
+import 'store_settings.dart';
+import 'notifications.dart';
 import '../services/delivery_repository.dart';
 import '../services/dashboard_repository.dart';
 import '../widgets/more_actions_sheet.dart';
+import '../widgets/top_header.dart';
+import '../widgets/shell_nav.dart';
 
 enum DeliveryFilter { all, pending, inTransit, delivered }
 
@@ -21,15 +26,18 @@ class DeliveryScreen extends StatefulWidget {
 }
 
 class _DeliveryScreenState extends State<DeliveryScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final DeliveryRepository _repository = DeliveryRepository();
   final DashboardRepository _dashboardRepository = DashboardRepository();
   final TextEditingController _search = TextEditingController();
+  final SupabaseClient _client = Supabase.instance.client;
 
   List<DeliveryRecord> _deliveries = const [];
   StoreInfo? _storeInfo;
   bool _loading = true;
   String? _error;
   DeliveryFilter _filter = DeliveryFilter.all;
+  int _unreadNotifications = 0;
 
   @override
   void initState() {
@@ -57,11 +65,58 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         _deliveries = results;
         _storeInfo = dash.storeInfo;
       });
+      await _loadUnreadNotifications();
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadUnreadNotifications() async {
+    try {
+      final user = _client.auth.currentUser;
+      final userId = user?.id;
+      final storeId = user?.userMetadata?['store_id']?.toString();
+
+      List<Map<String, dynamic>> rows = const [];
+
+      if (storeId != null && storeId.trim().isNotEmpty && userId != null) {
+        dynamic query = _client.from('notifications').select('id');
+        query = query.eq('is_read', false);
+        query = query.or('store_id.eq.$storeId,user_id.eq.$userId');
+        final result = await query;
+        rows = (result as List)
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+
+      if (rows.isEmpty && storeId != null && storeId.trim().isNotEmpty) {
+        dynamic query = _client.from('notifications').select('id');
+        query = query.eq('is_read', false);
+        query = query.eq('store_id', storeId);
+        final result = await query;
+        rows = (result as List)
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+
+      if (rows.isEmpty && userId != null) {
+        dynamic query = _client.from('notifications').select('id');
+        query = query.eq('is_read', false);
+        query = query.eq('user_id', userId);
+        final result = await query;
+        rows = (result as List)
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+
+      if (!mounted) return;
+      setState(() => _unreadNotifications = rows.length);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _unreadNotifications = 0);
     }
   }
 
@@ -104,45 +159,59 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     const soft = Color(0xFFF4EEF9);
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: bg,
       drawer: DashboardDrawer(
         onClose: () => Navigator.of(context).pop(),
         store: _storeInfo,
         onOpenDashboard: () {
-          Navigator.of(context).pop();
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const DashboardScreen()),
+          ShellNav.switchAfterDrawerClose(
+            context,
+            ShellTab.dashboard,
+            closeDrawer: () => Navigator.of(context).pop(),
           );
         },
         onOpenPosBilling: () {
-          Navigator.of(context).pop();
-          Navigator.of(
+          ShellNav.switchAfterDrawerClose(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const PosBillingScreen()));
+            ShellTab.posBilling,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
         },
         onOpenOrders: () {
-          Navigator.of(context).pop();
-          Navigator.of(
+          ShellNav.switchAfterDrawerClose(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const OrdersScreen()));
+            ShellTab.orders,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
         },
         onOpenProducts: () {
-          Navigator.of(context).pop();
-          Navigator.of(
+          ShellNav.switchAfterDrawerClose(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const ProductsScreen()));
+            ShellTab.products,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
         },
         onOpenCustomers: () {
-          Navigator.of(context).pop();
-          Navigator.of(
+          ShellNav.switchAfterDrawerClose(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const CustomerScreen()));
+            ShellTab.customers,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
         },
         onOpenAnalytics: () {
-          Navigator.of(context).pop();
-          Navigator.of(
+          ShellNav.switchAfterDrawerClose(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const AnalyticsScreen()));
+            ShellTab.analytics,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
+        },
+        onOpenStoreSettings: () {
+          ShellNav.switchAfterDrawerClose(
+            context,
+            ShellTab.storeSettings,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
         },
         onOpenDelivery: () => Navigator.of(context).pop(),
         activeDelivery: true,
@@ -154,50 +223,32 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         unselectedItemColor: const Color(0xFF8B7F95),
         onTap: (index) {
           if (index == 0) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const DashboardScreen()),
-            );
+            ShellNav.switchTo(context, ShellTab.dashboard);
           } else if (index == 1) {
-            Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const OrdersScreen()));
+            ShellNav.switchTo(context, ShellTab.orders);
           } else if (index == 2) {
-            Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const ProductsScreen()));
+            ShellNav.switchTo(context, ShellTab.products);
           } else if (index == 4) {
             showMoreActionsSheet(
               context: context,
               onOpenDashboard: () {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const DashboardScreen()),
-                );
+                ShellNav.switchTo(context, ShellTab.dashboard);
               },
               onOpenOrders: () {
-                Navigator.of(
-                  context,
-                ).push(MaterialPageRoute(builder: (_) => const OrdersScreen()));
+                ShellNav.switchTo(context, ShellTab.orders);
               },
               onOpenProducts: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ProductsScreen()),
-                );
+                ShellNav.switchTo(context, ShellTab.products);
               },
               onOpenPosBilling: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const PosBillingScreen()),
-                );
+                ShellNav.switchTo(context, ShellTab.posBilling);
               },
               onOpenAnalytics: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
-                );
+                ShellNav.switchTo(context, ShellTab.analytics);
               },
               activeModule: MoreActionsModule.vendors,
               onOpenAiUpload: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ProductsScreen()),
-                );
+                ShellNav.switchTo(context, ShellTab.products);
               },
             );
           }
@@ -225,145 +276,85 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,
-          child: SingleChildScrollView(
+          child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _TopBar(accent: accent, store: _storeInfo),
-                const SizedBox(height: 10),
-                const _TitleBlock(),
-                const SizedBox(height: 12),
-                _ActionsRow(accent: accent),
-                const SizedBox(height: 16),
-                _StatsGrid(
-                  accent: accent,
-                  soft: soft,
-                  total: _totalDeliveries,
-                  inTransit: _inTransit,
-                  completed: _completed,
-                  pending: _pending,
-                ),
-                const SizedBox(height: 16),
-                _SearchField(
-                  controller: _search,
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 12),
-                _FilterChips(
-                  selected: _filter,
-                  onChanged: (value) => setState(() => _filter = value),
-                ),
-                const SizedBox(height: 14),
-                if (_error != null)
-                  _ErrorBanner(message: _error!, onRetry: _load)
-                else if (_loading)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 40),
-                      child: CircularProgressIndicator(),
+            slivers: [
+              TopHeaderSliver(
+                backgroundColor: bg,
+                accent: accent,
+                unreadNotifications: _unreadNotifications,
+                onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                onNotificationsPressed: () {
+                  Navigator.of(context)
+                      .push(
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationsScreen(),
+                        ),
+                      )
+                      .then((_) => _loadUnreadNotifications());
+                },
+                logoUrl: _storeInfo?.logoUrl,
+                initials: _initials(_storeInfo?.name ?? 'Store'),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    const _TitleBlock(),
+                    const SizedBox(height: 12),
+                    _ActionsRow(accent: accent),
+                    const SizedBox(height: 16),
+                    _StatsGrid(
+                      accent: accent,
+                      soft: soft,
+                      total: _totalDeliveries,
+                      inTransit: _inTransit,
+                      completed: _completed,
+                      pending: _pending,
                     ),
-                  )
-                else if (_filtered.isEmpty)
-                  const _EmptyState()
-                else
-                  Column(
-                    children: _filtered
-                        .map(
-                          (d) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _DeliveryCard(delivery: d, accent: accent),
-                          ),
-                        )
-                        .toList(),
-                  ),
-              ],
-            ),
+                    const SizedBox(height: 16),
+                    _SearchField(
+                      controller: _search,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 12),
+                    _FilterChips(
+                      selected: _filter,
+                      onChanged: (value) => setState(() => _filter = value),
+                    ),
+                    const SizedBox(height: 14),
+                    if (_error != null)
+                      _ErrorBanner(message: _error!, onRetry: _load)
+                    else if (_loading)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 40),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else if (_filtered.isEmpty)
+                      const _EmptyState()
+                    else
+                      Column(
+                        children: _filtered
+                            .map(
+                              (d) => Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _DeliveryCard(
+                                  delivery: d,
+                                  accent: accent,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                  ]),
+                ),
+              ),
+            ],
           ),
         ),
       ),
-    );
-  }
-}
-
-class _TopBar extends StatelessWidget {
-  const _TopBar({required this.accent, required this.store});
-
-  final Color accent;
-  final StoreInfo? store;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        IconButton(
-          icon: const Icon(Icons.menu_rounded, color: Color(0xFF4A3A59)),
-          onPressed: () => Scaffold.of(context).openDrawer(),
-        ),
-        const Spacer(),
-        _BadgeIcon(icon: Icons.notifications_none_rounded, count: 1),
-        const SizedBox(width: 6),
-        _BadgeIcon(icon: Icons.headset_mic_outlined, count: 1),
-        const SizedBox(width: 8),
-        CircleAvatar(
-          radius: 16,
-          backgroundColor: accent,
-          child: Text(
-            _initials(store?.name ?? 'Store'),
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _BadgeIcon extends StatelessWidget {
-  const _BadgeIcon({required this.icon, required this.count});
-
-  final IconData icon;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF4EEF9),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFE3DFEA)),
-          ),
-          child: Icon(icon, color: const Color(0xFF4A3A59), size: 18),
-        ),
-        if (count > 0)
-          Positioned(
-            right: -4,
-            top: -6,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
-                color: Color(0xFFB3261E),
-                shape: BoxShape.circle,
-              ),
-              child: Text(
-                '$count',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-      ],
     );
   }
 }

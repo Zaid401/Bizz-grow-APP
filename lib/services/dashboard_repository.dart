@@ -33,6 +33,39 @@ class DashboardRepository {
         ? (stores.first['id'] ?? stores.first['store_id'])?.toString()
         : metaStoreId;
 
+    List<Map<String, dynamic>> customization = const [];
+    const customizationTables = ['store_customization', 'store_customizations'];
+    for (final table in customizationTables) {
+      try {
+        customization = await _select(
+          table: table,
+          columns: '*',
+          limit: 1,
+          userId: userId,
+          storeId: storeId,
+        );
+        break;
+      } on PostgrestException catch (e) {
+        final message = e.message.toLowerCase();
+        if (message.contains('could not find the table') ||
+            message.contains('relation') &&
+                message.contains('does not exist')) {
+          continue;
+        }
+        rethrow;
+      }
+    }
+
+    final rawLogoUrl = customization.isNotEmpty
+        ? _stringValue(customization.first, const [
+            'logo_url',
+            'logoUrl',
+            'logo',
+            'store_logo',
+          ], '')
+        : '';
+    final logoUrl = _resolveLogoUrl(rawLogoUrl);
+
     // Pull all columns to avoid "column X does not exist" errors; parse known keys with fallbacks.
     final todayOrders = await _select(
       table: 'orders',
@@ -156,6 +189,7 @@ class DashboardRepository {
                 'store_name',
                 'title',
               ], 'My Store'),
+              logoUrl: (logoUrl?.isNotEmpty ?? false) ? logoUrl : null,
               category: _stringValue(row, const [
                 'category',
                 'type',
@@ -504,6 +538,18 @@ class DashboardRepository {
     return fallback;
   }
 
+  String? _resolveLogoUrl(String rawUrl) {
+    final trimmed = rawUrl.trim();
+    if (trimmed.isEmpty) return null;
+    if (trimmed.startsWith('http')) return trimmed;
+    var path = trimmed;
+    const prefix = 'store-assets/';
+    if (path.startsWith(prefix)) {
+      path = path.substring(prefix.length);
+    }
+    return _client.storage.from('store-assets').getPublicUrl(path);
+  }
+
   String _joinNonEmpty(List<String> parts, String separator) {
     return parts.where((p) => p.trim().isNotEmpty).join(separator).trim();
   }
@@ -564,6 +610,7 @@ class RecentOrder {
 class StoreInfo {
   const StoreInfo({
     required this.name,
+    this.logoUrl,
     required this.category,
     required this.mode,
     required this.location,
@@ -571,6 +618,7 @@ class StoreInfo {
   });
 
   final String name;
+  final String? logoUrl;
   final String category;
   final String mode;
   final String location;

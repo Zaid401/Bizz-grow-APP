@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'slider.dart';
 import 'dashboard.dart';
@@ -7,10 +8,14 @@ import 'products.dart';
 import 'customer.dart';
 import 'Analytics.dart';
 import 'delivery.dart';
+import 'store_settings.dart';
+import 'notifications.dart';
 import '../services/orders_repository.dart';
 import '../services/dashboard_repository.dart';
 import '../widgets/more_actions_sheet.dart';
 import '../widgets/order_detail_screen.dart';
+import '../widgets/top_header.dart';
+import '../widgets/shell_nav.dart';
 import 'package:bizz_grow/models/order_types.dart';
 
 enum OrderTimeline {
@@ -30,16 +35,19 @@ class OrdersScreen extends StatefulWidget {
 }
 
 class _OrdersScreenState extends State<OrdersScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   OrderChannel _selectedChannel = OrderChannel.all;
   OrderStatus _selectedStatus = OrderStatus.all;
   OrderTimeline _selectedTimeline = OrderTimeline.today;
 
   final OrdersRepository _repository = OrdersRepository();
   final DashboardRepository _dashboardRepository = DashboardRepository();
+  final SupabaseClient _client = Supabase.instance.client;
   StoreInfo? _storeInfo;
   List<OrderRecord> _orders = const [];
   bool _loading = true;
   String? _error;
+  int _unreadNotifications = 0;
 
   @override
   void initState() {
@@ -61,11 +69,58 @@ class _OrdersScreenState extends State<OrdersScreen> {
         _orders = results;
         _storeInfo = dash.storeInfo;
       });
+      await _loadUnreadNotifications();
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadUnreadNotifications() async {
+    try {
+      final user = _client.auth.currentUser;
+      final userId = user?.id;
+      final storeId = user?.userMetadata?['store_id']?.toString();
+
+      List<Map<String, dynamic>> rows = const [];
+
+      if (storeId != null && storeId.trim().isNotEmpty && userId != null) {
+        dynamic query = _client.from('notifications').select('id');
+        query = query.eq('is_read', false);
+        query = query.or('store_id.eq.$storeId,user_id.eq.$userId');
+        final result = await query;
+        rows = (result as List)
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+
+      if (rows.isEmpty && storeId != null && storeId.trim().isNotEmpty) {
+        dynamic query = _client.from('notifications').select('id');
+        query = query.eq('is_read', false);
+        query = query.eq('store_id', storeId);
+        final result = await query;
+        rows = (result as List)
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+
+      if (rows.isEmpty && userId != null) {
+        dynamic query = _client.from('notifications').select('id');
+        query = query.eq('is_read', false);
+        query = query.eq('user_id', userId);
+        final result = await query;
+        rows = (result as List)
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+
+      if (!mounted) return;
+      setState(() => _unreadNotifications = rows.length);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _unreadNotifications = 0);
     }
   }
 
@@ -98,45 +153,59 @@ class _OrdersScreenState extends State<OrdersScreen> {
         .length;
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: bg,
       drawer: DashboardDrawer(
         onClose: () => Navigator.of(context).pop(),
         store: _storeInfo,
         onOpenDashboard: () {
-          Navigator.of(context).pop();
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const DashboardScreen()),
+          ShellNav.switchAfterDrawerClose(
+            context,
+            ShellTab.dashboard,
+            closeDrawer: () => Navigator.of(context).pop(),
           );
         },
         onOpenPosBilling: () {
-          Navigator.of(context).pop();
-          Navigator.of(
+          ShellNav.switchAfterDrawerClose(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const PosBillingScreen()));
+            ShellTab.posBilling,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
         },
         onOpenProducts: () {
-          Navigator.of(context).pop();
-          Navigator.of(
+          ShellNav.switchAfterDrawerClose(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const ProductsScreen()));
+            ShellTab.products,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
         },
         onOpenCustomers: () {
-          Navigator.of(context).pop();
-          Navigator.of(
+          ShellNav.switchAfterDrawerClose(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const CustomerScreen()));
+            ShellTab.customers,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
         },
         onOpenAnalytics: () {
-          Navigator.of(context).pop();
-          Navigator.of(
+          ShellNav.switchAfterDrawerClose(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const AnalyticsScreen()));
+            ShellTab.analytics,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
         },
         onOpenDelivery: () {
-          Navigator.of(context).pop();
-          Navigator.of(
+          ShellNav.switchAfterDrawerClose(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const DeliveryScreen()));
+            ShellTab.delivery,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
+        },
+        onOpenStoreSettings: () {
+          ShellNav.switchAfterDrawerClose(
+            context,
+            ShellTab.storeSettings,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
         },
         onOpenOrders: () {},
         activeOrders: true,
@@ -148,44 +217,30 @@ class _OrdersScreenState extends State<OrdersScreen> {
         unselectedItemColor: const Color(0xFF8B7F95),
         onTap: (index) {
           if (index == 0) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const DashboardScreen()),
-            );
+            ShellNav.switchTo(context, ShellTab.dashboard);
           } else if (index == 1) {
             // stay
           } else if (index == 2) {
-            Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const ProductsScreen()));
+            ShellNav.switchTo(context, ShellTab.products);
           } else if (index == 4) {
             showMoreActionsSheet(
               context: context,
               onOpenDashboard: () {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const DashboardScreen()),
-                );
+                ShellNav.switchTo(context, ShellTab.dashboard);
               },
               onOpenOrders: () {},
               onOpenProducts: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ProductsScreen()),
-                );
+                ShellNav.switchTo(context, ShellTab.products);
               },
               onOpenPosBilling: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const PosBillingScreen()),
-                );
+                ShellNav.switchTo(context, ShellTab.posBilling);
               },
               onOpenAnalytics: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
-                );
+                ShellNav.switchTo(context, ShellTab.analytics);
               },
               activeModule: MoreActionsModule.orders,
               onOpenAiUpload: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ProductsScreen()),
-                );
+                ShellNav.switchTo(context, ShellTab.products);
               },
             );
           }
@@ -213,82 +268,100 @@ class _OrdersScreenState extends State<OrdersScreen> {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,
-          child: SingleChildScrollView(
+          child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _TopBar(accent: accent, store: _storeInfo),
-                const SizedBox(height: 12),
-                const _Title(),
-                const SizedBox(height: 16),
-                _Filters(
-                  accent: accent,
-                  selectedTimeline: _timelineLabel(_selectedTimeline),
-                  onTimelineTap: _showTimelineMenu,
-                ),
-                const SizedBox(height: 16),
-                _StatsGrid(
-                  accent: accent,
-                  total: totalOrders,
-                  online: onlineOrders,
-                  walkIn: walkInOrders,
-                  pending: pendingOrders,
-                ),
-                const SizedBox(height: 12),
-                _OrderTypeTabs(
-                  selected: _selectedChannel,
-                  onChanged: (channel) =>
-                      setState(() => _selectedChannel = channel),
-                ),
-                const SizedBox(height: 12),
-                _StatusChips(
-                  selected: _selectedStatus,
-                  onChanged: (status) =>
-                      setState(() => _selectedStatus = status),
-                ),
-                const SizedBox(height: 14),
-                const _SearchRow(),
-                const SizedBox(height: 16),
-                if (_error != null)
-                  _ErrorBanner(message: _error!, onRetry: _load)
-                else if (_loading)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 40),
-                      child: CircularProgressIndicator(),
+            slivers: [
+              TopHeaderSliver(
+                backgroundColor: bg,
+                accent: accent,
+                unreadNotifications: _unreadNotifications,
+                onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                onNotificationsPressed: () {
+                  Navigator.of(context)
+                      .push(
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationsScreen(),
+                        ),
+                      )
+                      .then((_) => _loadUnreadNotifications());
+                },
+                logoUrl: _storeInfo?.logoUrl,
+                initials: _initials(_storeInfo?.name ?? 'Store'),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    const _Title(),
+                    const SizedBox(height: 16),
+                    _Filters(
+                      accent: accent,
+                      selectedTimeline: _timelineLabel(_selectedTimeline),
+                      onTimelineTap: _showTimelineMenu,
                     ),
-                  )
-                else if (filtered.isEmpty)
-                  const _EmptyOrders()
-                else
-                  Column(
-                    children: filtered
-                        .map(
-                          (order) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _OrderCard(
-                              order: order,
-                              accent: accent,
-                              textPrimary: textPrimary,
-                              textSecondary: textSecondary,
-                              soft: soft,
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        OrderDetailScreen(order: order),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-              ],
-            ),
+                    const SizedBox(height: 16),
+                    _StatsGrid(
+                      accent: accent,
+                      total: totalOrders,
+                      online: onlineOrders,
+                      walkIn: walkInOrders,
+                      pending: pendingOrders,
+                    ),
+                    const SizedBox(height: 12),
+                    _OrderTypeTabs(
+                      selected: _selectedChannel,
+                      onChanged: (channel) =>
+                          setState(() => _selectedChannel = channel),
+                    ),
+                    const SizedBox(height: 12),
+                    _StatusChips(
+                      selected: _selectedStatus,
+                      onChanged: (status) =>
+                          setState(() => _selectedStatus = status),
+                    ),
+                    const SizedBox(height: 14),
+                    const _SearchRow(),
+                    const SizedBox(height: 16),
+                    if (_error != null)
+                      _ErrorBanner(message: _error!, onRetry: _load)
+                    else if (_loading)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 40),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else if (filtered.isEmpty)
+                      const _EmptyOrders()
+                    else
+                      Column(
+                        children: filtered
+                            .map(
+                              (order) => Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _OrderCard(
+                                  order: order,
+                                  accent: accent,
+                                  textPrimary: textPrimary,
+                                  textSecondary: textSecondary,
+                                  soft: soft,
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            OrderDetailScreen(order: order),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                  ]),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -367,53 +440,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
     if (selected == null || selected == _selectedTimeline) return;
     setState(() => _selectedTimeline = selected);
-  }
-}
-
-class _TopBar extends StatelessWidget {
-  const _TopBar({required this.accent, required this.store});
-
-  final Color accent;
-  final StoreInfo? store;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        IconButton(
-          icon: const Icon(Icons.menu_rounded, color: Color(0xFF4A3A59)),
-          onPressed: () => Scaffold.of(context).openDrawer(),
-        ),
-        const Spacer(),
-        IconButton(
-          icon: const Icon(
-            Icons.notifications_none_rounded,
-            color: Color(0xFF4A3A59),
-          ),
-          onPressed: () {},
-        ),
-        IconButton(
-          icon: const Icon(Icons.volume_off, color: Color(0xFF4A3A59)),
-          onPressed: () {},
-        ),
-        IconButton(
-          icon: const Icon(Icons.dnd_forwardslash, color: Color(0xFF4A3A59)),
-          onPressed: () {},
-        ),
-        const SizedBox(width: 4),
-        CircleAvatar(
-          radius: 16,
-          backgroundColor: accent,
-          child: Text(
-            _initials(store?.name ?? 'Store'),
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ],
-    );
   }
 }
 

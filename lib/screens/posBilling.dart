@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'slider.dart';
 import 'orders.dart';
@@ -6,10 +7,14 @@ import 'products.dart';
 import 'customer.dart';
 import 'Analytics.dart';
 import 'delivery.dart';
+import 'store_settings.dart';
 import 'dashboard.dart';
+import 'notifications.dart';
 import '../services/dashboard_repository.dart';
 import '../services/pos_repository.dart';
 import '../widgets/more_actions_sheet.dart';
+import '../widgets/top_header.dart';
+import '../widgets/shell_nav.dart';
 
 class PosBillingScreen extends StatefulWidget {
   const PosBillingScreen({super.key});
@@ -19,14 +24,17 @@ class PosBillingScreen extends StatefulWidget {
 }
 
 class _PosBillingScreenState extends State<PosBillingScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final DashboardRepository _dashboardRepository = DashboardRepository();
   final PosRepository _repository = PosRepository();
   final TextEditingController _search = TextEditingController();
+  final SupabaseClient _client = Supabase.instance.client;
 
   List<PosProduct> _products = const [];
   StoreInfo? _storeInfo;
   bool _loading = true;
   String? _error;
+  int _unreadNotifications = 0;
 
   @override
   void initState() {
@@ -54,11 +62,58 @@ class _PosBillingScreenState extends State<PosBillingScreen> {
         _products = products;
         _storeInfo = dash.storeInfo;
       });
+      await _loadUnreadNotifications();
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadUnreadNotifications() async {
+    try {
+      final user = _client.auth.currentUser;
+      final userId = user?.id;
+      final storeId = user?.userMetadata?['store_id']?.toString();
+
+      List<Map<String, dynamic>> rows = const [];
+
+      if (storeId != null && storeId.trim().isNotEmpty && userId != null) {
+        dynamic query = _client.from('notifications').select('id');
+        query = query.eq('is_read', false);
+        query = query.or('store_id.eq.$storeId,user_id.eq.$userId');
+        final result = await query;
+        rows = (result as List)
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+
+      if (rows.isEmpty && storeId != null && storeId.trim().isNotEmpty) {
+        dynamic query = _client.from('notifications').select('id');
+        query = query.eq('is_read', false);
+        query = query.eq('store_id', storeId);
+        final result = await query;
+        rows = (result as List)
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+
+      if (rows.isEmpty && userId != null) {
+        dynamic query = _client.from('notifications').select('id');
+        query = query.eq('is_read', false);
+        query = query.eq('user_id', userId);
+        final result = await query;
+        rows = (result as List)
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+
+      if (!mounted) return;
+      setState(() => _unreadNotifications = rows.length);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _unreadNotifications = 0);
     }
   }
 
@@ -79,187 +134,120 @@ class _PosBillingScreenState extends State<PosBillingScreen> {
     const accent = Color(0xFF4D0E7F);
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: Colors.white,
       drawer: DashboardDrawer(
         store: _storeInfo,
         onClose: () => Navigator.of(context).pop(),
         onOpenPosBilling: () => Navigator.of(context).pop(),
         onOpenDashboard: () {
-          Navigator.of(context).pop();
-          Navigator.of(context).maybePop();
+          ShellNav.switchAfterDrawerClose(
+            context,
+            ShellTab.dashboard,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
         },
         onOpenOrders: () {
-          Navigator.of(context).pop();
-          Navigator.of(
+          ShellNav.switchAfterDrawerClose(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const OrdersScreen()));
+            ShellTab.orders,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
         },
         onOpenProducts: () {
-          Navigator.of(context).pop();
-          Navigator.of(
+          ShellNav.switchAfterDrawerClose(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const ProductsScreen()));
+            ShellTab.products,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
         },
         onOpenCustomers: () {
-          Navigator.of(context).pop();
-          Navigator.of(
+          ShellNav.switchAfterDrawerClose(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const CustomerScreen()));
+            ShellTab.customers,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
         },
         onOpenAnalytics: () {
-          Navigator.of(context).pop();
-          Navigator.of(
+          ShellNav.switchAfterDrawerClose(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const AnalyticsScreen()));
+            ShellTab.analytics,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
         },
         onOpenDelivery: () {
-          Navigator.of(context).pop();
-          Navigator.of(
+          ShellNav.switchAfterDrawerClose(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const DeliveryScreen()));
+            ShellTab.delivery,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
+        },
+        onOpenStoreSettings: () {
+          ShellNav.switchAfterDrawerClose(
+            context,
+            ShellTab.storeSettings,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
         },
         activePosBilling: true,
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            _Header(accent: accent, store: _storeInfo),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: _load,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const _TitleBar(),
-                      const SizedBox(height: 14),
-                      _SearchField(
-                        controller: _search,
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 14),
-                      if (_error != null)
-                        _ErrorBanner(message: _error!, onRetry: _load)
-                      else if (_loading)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 40),
-                            child: CircularProgressIndicator(),
-                          ),
-                        )
-                      else if (_filteredProducts.isEmpty)
-                        const _EmptyProducts()
-                      else
-                        _ProductList(products: _filteredProducts),
-                      const SizedBox(height: 18),
-                      const _CartCard(),
-                    ],
-                  ),
+        child: RefreshIndicator(
+          onRefresh: _load,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              TopHeaderSliver(
+                backgroundColor: Colors.white,
+                accent: accent,
+                unreadNotifications: _unreadNotifications,
+                onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                onNotificationsPressed: () {
+                  Navigator.of(context)
+                      .push(
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationsScreen(),
+                        ),
+                      )
+                      .then((_) => _loadUnreadNotifications());
+                },
+                logoUrl: _storeInfo?.logoUrl,
+                initials: _initials(_storeInfo?.name ?? 'Store'),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    const _TitleBar(),
+                    const SizedBox(height: 14),
+                    _SearchField(
+                      controller: _search,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 14),
+                    if (_error != null)
+                      _ErrorBanner(message: _error!, onRetry: _load)
+                    else if (_loading)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 40),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else if (_filteredProducts.isEmpty)
+                      const _EmptyProducts()
+                    else
+                      _ProductList(products: _filteredProducts),
+                    const SizedBox(height: 18),
+                    const _CartCard(),
+                  ]),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: const _BottomNav(),
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({required this.accent, required this.store});
-
-  final Color accent;
-  final StoreInfo? store;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 6, 12, 6),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.menu_rounded, color: Color(0xFF4A3A59)),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-          const Spacer(),
-          _BadgeIcon(
-            icon: Icons.notifications_none_rounded,
-            count: 1,
-            accent: accent,
-          ),
-          const SizedBox(width: 6),
-          _BadgeIcon(
-            icon: Icons.headset_mic_outlined,
-            count: 1,
-            accent: accent,
-          ),
-          const SizedBox(width: 8),
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: accent,
-            child: Text(
-              _initials(store?.name ?? 'Store'),
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BadgeIcon extends StatelessWidget {
-  const _BadgeIcon({
-    required this.icon,
-    required this.count,
-    required this.accent,
-  });
-
-  final IconData icon;
-  final int count;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF4EEF9),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: const Color(0xFF4A3A59)),
-        ),
-        if (count > 0)
-          Positioned(
-            right: -2,
-            top: -2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.red,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '$count',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-      ],
     );
   }
 }
@@ -592,46 +580,30 @@ class _BottomNav extends StatelessWidget {
       unselectedItemColor: const Color(0xFF8B7F95),
       onTap: (index) {
         if (index == 0) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const DashboardScreen()),
-          );
+          ShellNav.switchTo(context, ShellTab.dashboard);
         } else if (index == 1) {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const OrdersScreen()));
+          ShellNav.switchTo(context, ShellTab.orders);
         } else if (index == 2) {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const ProductsScreen()));
+          ShellNav.switchTo(context, ShellTab.products);
         } else if (index == 4) {
           showMoreActionsSheet(
             context: context,
             onOpenDashboard: () {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const DashboardScreen()),
-              );
+              ShellNav.switchTo(context, ShellTab.dashboard);
             },
             onOpenOrders: () {
-              Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const OrdersScreen()));
+              ShellNav.switchTo(context, ShellTab.orders);
             },
             onOpenProducts: () {
-              Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const ProductsScreen()));
+              ShellNav.switchTo(context, ShellTab.products);
             },
             onOpenPosBilling: () {},
             onOpenAnalytics: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
-              );
+              ShellNav.switchTo(context, ShellTab.analytics);
             },
             activeModule: MoreActionsModule.posBilling,
             onOpenAiUpload: () {
-              Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const ProductsScreen()));
+              ShellNav.switchTo(context, ShellTab.products);
             },
           );
         }

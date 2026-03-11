@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'screens/dashboard.dart';
+import 'screens/home_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -118,7 +118,7 @@ class _SellerLoginPageState extends State<SellerLoginPage> {
       if (!mounted) return;
       Navigator.of(
         context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => DashboardScreen()));
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeShell()));
     } on AuthException catch (e) {
       final msg = e.message.contains('API key')
           ? 'Invalid Supabase API key. Update SUPABASE_ANON_KEY in .env with the anon (public) key from your project settings. Loaded key: ${_maskKey(dotenv.env['SUPABASE_ANON_KEY']?.trim())}'
