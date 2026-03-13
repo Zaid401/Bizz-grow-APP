@@ -36,6 +36,11 @@ class _PosBillingScreenState extends State<PosBillingScreen> {
   String? _error;
   int _unreadNotifications = 0;
 
+  static const Color _navSurface = Color(0xFFFFFFFF);
+  static const Color _navDivider = Color(0xFFE9E2F6);
+  static const Color _navAccent = Color(0xFF5B21B6);
+  static const Color _navText = Color(0xFF6B5E85);
+
   @override
   void initState() {
     super.initState();
@@ -191,6 +196,7 @@ class _PosBillingScreenState extends State<PosBillingScreen> {
         },
         activePosBilling: true,
       ),
+      bottomNavigationBar: _buildBottomNav(),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,
@@ -247,7 +253,79 @@ class _PosBillingScreenState extends State<PosBillingScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: const _BottomNav(),
+    );
+  }
+
+  Widget _buildBottomNav() {
+    return Container(
+      decoration: BoxDecoration(
+        color: _navSurface,
+        border: Border(top: BorderSide(color: _navDivider)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        currentIndex: 4,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        selectedItemColor: _navAccent,
+        unselectedItemColor: _navText,
+        selectedFontSize: 11,
+        unselectedFontSize: 11,
+        onTap: (index) {
+          if (index == 0) {
+            ShellNav.switchTo(context, ShellTab.dashboard);
+          } else if (index == 1) {
+            ShellNav.switchTo(context, ShellTab.orders);
+          } else if (index == 2) {
+            ShellNav.switchTo(context, ShellTab.products);
+          } else if (index == 4) {
+            showMoreActionsSheet(
+              context: context,
+              onOpenDashboard: () =>
+                  ShellNav.switchTo(context, ShellTab.dashboard),
+              onOpenOrders: () => ShellNav.switchTo(context, ShellTab.orders),
+              onOpenProducts: () =>
+                  ShellNav.switchTo(context, ShellTab.products),
+              onOpenPosBilling: () =>
+                  ShellNav.switchTo(context, ShellTab.posBilling),
+              onOpenAnalytics: () =>
+                  ShellNav.switchTo(context, ShellTab.analytics),
+              activeModule: MoreActionsModule.posBilling,
+              onOpenAiUpload: () =>
+                  ShellNav.switchTo(context, ShellTab.products),
+            );
+          }
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.grid_view_rounded),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.shopping_bag_rounded),
+            label: 'Orders',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.inventory_2_rounded),
+            label: 'Products',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.share_rounded),
+            label: 'Share',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.menu_rounded),
+            label: 'More',
+          ),
+        ],
+      ),
     );
   }
 }
@@ -564,69 +642,6 @@ class _ErrorBanner extends StatelessWidget {
           TextButton(onPressed: onRetry, child: const Text('Retry')),
         ],
       ),
-    );
-  }
-}
-
-class _BottomNav extends StatelessWidget {
-  const _BottomNav();
-
-  @override
-  Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      type: BottomNavigationBarType.fixed,
-      currentIndex: 4,
-      selectedItemColor: const Color(0xFF4D0E7F),
-      unselectedItemColor: const Color(0xFF8B7F95),
-      onTap: (index) {
-        if (index == 0) {
-          ShellNav.switchTo(context, ShellTab.dashboard);
-        } else if (index == 1) {
-          ShellNav.switchTo(context, ShellTab.orders);
-        } else if (index == 2) {
-          ShellNav.switchTo(context, ShellTab.products);
-        } else if (index == 4) {
-          showMoreActionsSheet(
-            context: context,
-            onOpenDashboard: () {
-              ShellNav.switchTo(context, ShellTab.dashboard);
-            },
-            onOpenOrders: () {
-              ShellNav.switchTo(context, ShellTab.orders);
-            },
-            onOpenProducts: () {
-              ShellNav.switchTo(context, ShellTab.products);
-            },
-            onOpenPosBilling: () {},
-            onOpenAnalytics: () {
-              ShellNav.switchTo(context, ShellTab.analytics);
-            },
-            activeModule: MoreActionsModule.posBilling,
-            onOpenAiUpload: () {
-              ShellNav.switchTo(context, ShellTab.products);
-            },
-          );
-        }
-      },
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.grid_view_rounded),
-          label: 'Home',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.shopping_cart_outlined),
-          label: 'Orders',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.inventory_2_outlined),
-          label: 'Products',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.share_outlined),
-          label: 'Share',
-        ),
-        BottomNavigationBarItem(icon: Icon(Icons.menu), label: 'More'),
-      ],
     );
   }
 }

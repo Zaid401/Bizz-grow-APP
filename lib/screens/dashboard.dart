@@ -11,6 +11,7 @@ import 'customer.dart';
 import 'delivery.dart';
 import 'store_settings.dart';
 import 'notifications.dart';
+import '../loading/skeleton_dashboard.dart';
 import '../widgets/more_actions_sheet.dart';
 import '../widgets/top_header.dart';
 import '../widgets/shell_nav.dart';
@@ -203,9 +204,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           backgroundColor: _surface,
           onRefresh: _loadData,
           child: _loading
-              ? const Center(
-                  child: CircularProgressIndicator(color: _accentLight),
-                )
+              ? const SkeletonDashboard()
               : FadeTransition(
                   opacity: _fadeAnimation,
                   child: CustomScrollView(

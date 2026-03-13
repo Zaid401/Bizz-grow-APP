@@ -11,6 +11,19 @@ enum MoreActionsModule {
   vendors,
 }
 
+// ── Palette ────────────────────────────────────────────────────────────────────
+class _C {
+  static const bg = Color(0xFFF2EEF9);
+  static const surface = Color(0xFFFFFFFF);
+  static const accent = Color(0xFF5B21B6);
+  static const accentLight = Color(0xFF7C3AED);
+  static const accentSoft = Color(0xFFEDE9FE);
+  static const accentMid = Color(0xFFDDD6FE);
+  static const textPrimary = Color(0xFF1A0F2E);
+  static const textSecondary = Color(0xFF6B5E85);
+  static const divider = Color(0xFFE9E2F6);
+}
+
 Future<void> showMoreActionsSheet({
   required BuildContext context,
   required VoidCallback onOpenDashboard,
@@ -27,235 +40,420 @@ Future<void> showMoreActionsSheet({
   return showModalBottomSheet(
     context: context,
     backgroundColor: Colors.transparent,
-    builder: (sheetContext) {
-      void handleTap(VoidCallback? onTap) {
-        Navigator.of(sheetContext).pop();
-        onTap?.call();
-      }
+    isScrollControlled: true,
+    builder: (sheetContext) => _MoreActionsSheet(
+      onOpenDashboard: onOpenDashboard,
+      onOpenOrders: onOpenOrders,
+      onOpenProducts: onOpenProducts,
+      onOpenPosBilling: onOpenPosBilling,
+      onOpenAnalytics: onOpenAnalytics,
+      activeModule: activeModule,
+      onAddProduct: onAddProduct,
+      onOpenAiUpload: onOpenAiUpload,
+      onOpenCatalogueLink: onOpenCatalogueLink,
+      onOpenVendors: onOpenVendors,
+    ),
+  );
+}
 
-      Widget quickAction(
-        IconData icon,
-        String label,
-        Color color,
-        VoidCallback? onTap,
-      ) {
-        return GestureDetector(
-          onTap: () => handleTap(onTap),
+class _MoreActionsSheet extends StatelessWidget {
+  const _MoreActionsSheet({
+    required this.onOpenDashboard,
+    required this.onOpenOrders,
+    required this.onOpenProducts,
+    required this.onOpenPosBilling,
+    required this.onOpenAnalytics,
+    this.activeModule,
+    this.onAddProduct,
+    this.onOpenAiUpload,
+    this.onOpenCatalogueLink,
+    this.onOpenVendors,
+  });
+
+  final VoidCallback onOpenDashboard;
+  final VoidCallback onOpenOrders;
+  final VoidCallback onOpenProducts;
+  final VoidCallback onOpenPosBilling;
+  final VoidCallback onOpenAnalytics;
+  final MoreActionsModule? activeModule;
+  final VoidCallback? onAddProduct;
+  final VoidCallback? onOpenAiUpload;
+  final VoidCallback? onOpenCatalogueLink;
+  final VoidCallback? onOpenVendors;
+
+  void _handle(BuildContext ctx, VoidCallback? onTap) {
+    Navigator.of(ctx).pop();
+    onTap?.call();
+  }
+
+  // ── Quick action data ──────────────────────────────────────────────────────
+  static const _quickActions = [
+    _QuickData(
+      icon: Icons.add_box_rounded,
+      label: 'Add Product',
+      gradient: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+      softBg: Color(0xFFDBEAFE),
+    ),
+    _QuickData(
+      icon: Icons.auto_awesome_rounded,
+      label: 'AI Upload',
+      gradient: [Color(0xFFD97706), Color(0xFFB45309)],
+      softBg: Color(0xFFFEF3C7),
+    ),
+    _QuickData(
+      icon: Icons.point_of_sale_rounded,
+      label: 'POS Billing',
+      gradient: [Color(0xFF059669), Color(0xFF047857)],
+      softBg: Color(0xFFD1FAE5),
+    ),
+    _QuickData(
+      icon: Icons.bar_chart_rounded,
+      label: 'Analytics',
+      gradient: [Color(0xFF7C3AED), Color(0xFF5B21B6)],
+      softBg: Color(0xFFEDE9FE),
+    ),
+  ];
+
+  // ── Module data ────────────────────────────────────────────────────────────
+  List<_ModuleData> _modules() => [
+    _ModuleData(
+      Icons.grid_view_rounded,
+      'Dashboard',
+      MoreActionsModule.dashboard,
+      onOpenDashboard,
+    ),
+    _ModuleData(
+      Icons.point_of_sale_rounded,
+      'POS Billing',
+      MoreActionsModule.posBilling,
+      onOpenPosBilling,
+    ),
+    _ModuleData(
+      Icons.shopping_bag_rounded,
+      'Orders',
+      MoreActionsModule.orders,
+      onOpenOrders,
+    ),
+    _ModuleData(
+      Icons.inventory_2_rounded,
+      'Products',
+      MoreActionsModule.products,
+      onOpenProducts,
+    ),
+    _ModuleData(
+      Icons.auto_awesome_rounded,
+      'AI Upload',
+      MoreActionsModule.aiUpload,
+      onOpenAiUpload,
+    ),
+    _ModuleData(
+      Icons.link_rounded,
+      'Catalogue',
+      MoreActionsModule.catalogueLink,
+      onOpenCatalogueLink,
+    ),
+    _ModuleData(
+      Icons.bar_chart_rounded,
+      'Analytics',
+      MoreActionsModule.analytics,
+      onOpenAnalytics,
+    ),
+    _ModuleData(
+      Icons.storefront_rounded,
+      'Vendors',
+      MoreActionsModule.vendors,
+      onOpenVendors,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final modules = _modules();
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: _C.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundColor: color,
-                child: Icon(icon, color: Colors.white),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF4A3A59),
+              // ── Handle ─────────────────────────────────────────────────────
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: _C.divider,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
-            ],
-          ),
-        );
-      }
 
-      Widget moduleChip(
-        IconData icon,
-        String label,
-        VoidCallback? onTap, {
-        bool highlighted = false,
-      }) {
-        final bg = highlighted
-            ? const Color(0xFFEAE3F5)
-            : const Color(0xFFF6F2FB);
-        final fg = highlighted
-            ? const Color(0xFF4D0E7F)
-            : const Color(0xFF2C1937);
-        return Material(
-          color: bg,
-          borderRadius: BorderRadius.circular(14),
-          child: InkWell(
-            onTap: () => handleTap(onTap),
-            borderRadius: BorderRadius.circular(14),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+              // ── Header ─────────────────────────────────────────────────────
+              Row(
                 children: [
-                  Icon(icon, size: 18, color: fg),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
+                  Container(
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [_C.accentLight, _C.accent],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _C.accent.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.apps_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Quick Actions',
                     style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: fg,
-                      fontSize: 13,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: _C.textPrimary,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: _C.bg,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        size: 18,
+                        color: _C.textSecondary,
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
-          ),
-        );
-      }
 
-      return Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 22),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text(
-                      'Quick Actions',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF2C1937),
+              const SizedBox(height: 20),
+
+              // ── Quick action icons row ──────────────────────────────────────
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildQuickBtn(
+                    context,
+                    _quickActions[0],
+                    onAddProduct ?? onOpenProducts,
+                  ),
+                  _buildQuickBtn(context, _quickActions[1], onOpenAiUpload),
+                  _buildQuickBtn(context, _quickActions[2], onOpenPosBilling),
+                  _buildQuickBtn(context, _quickActions[3], onOpenAnalytics),
+                ],
+              ),
+
+              const SizedBox(height: 22),
+
+              // ── Section label ───────────────────────────────────────────────
+              Row(
+                children: [
+                  const Text(
+                    'All Modules',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: _C.textSecondary,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Container(
+                      height: 1,
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [_C.divider, Colors.transparent],
+                        ),
                       ),
                     ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => Navigator.of(sheetContext).pop(),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    quickAction(
-                      Icons.add,
-                      'Add Product',
-                      const Color(0xFF2F6BFF),
-                      onAddProduct ?? onOpenProducts,
-                    ),
-                    quickAction(
-                      Icons.auto_awesome_motion,
-                      'AI Upload',
-                      const Color(0xFFF39C12),
-                      onOpenAiUpload,
-                    ),
-                    quickAction(
-                      Icons.point_of_sale,
-                      'POS Billing',
-                      const Color(0xFF2ECC71),
-                      onOpenPosBilling,
-                    ),
-                    quickAction(
-                      Icons.bar_chart,
-                      'Analytics',
-                      const Color(0xFF8E54E9),
-                      onOpenAnalytics,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                const Text(
-                  'All Modules',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF6A4C8A),
                   ),
-                ),
-                const SizedBox(height: 12),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final itemWidth = (constraints.maxWidth - 10) / 2;
-                    return Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children:
-                          [
-                                moduleChip(
-                                  Icons.grid_view_rounded,
-                                  'Dashboard',
-                                  onOpenDashboard,
-                                  highlighted:
-                                      activeModule ==
-                                      MoreActionsModule.dashboard,
-                                ),
-                                moduleChip(
-                                  Icons.point_of_sale,
-                                  'POS Billing',
-                                  onOpenPosBilling,
-                                  highlighted:
-                                      activeModule ==
-                                      MoreActionsModule.posBilling,
-                                ),
-                                moduleChip(
-                                  Icons.shopping_cart_outlined,
-                                  'Orders',
-                                  onOpenOrders,
-                                  highlighted:
-                                      activeModule == MoreActionsModule.orders,
-                                ),
-                                moduleChip(
-                                  Icons.inventory_2_outlined,
-                                  'Products',
-                                  onOpenProducts,
-                                  highlighted:
-                                      activeModule ==
-                                      MoreActionsModule.products,
-                                ),
-                                moduleChip(
-                                  Icons.auto_awesome_motion,
-                                  'AI Upload',
-                                  onOpenAiUpload,
-                                  highlighted:
-                                      activeModule ==
-                                      MoreActionsModule.aiUpload,
-                                ),
-                                moduleChip(
-                                  Icons.link,
-                                  'Catalogue Link',
-                                  onOpenCatalogueLink,
-                                  highlighted:
-                                      activeModule ==
-                                      MoreActionsModule.catalogueLink,
-                                ),
-                                moduleChip(
-                                  Icons.bar_chart,
-                                  'Analytics',
-                                  onOpenAnalytics,
-                                  highlighted:
-                                      activeModule ==
-                                      MoreActionsModule.analytics,
-                                ),
-                                moduleChip(
-                                  Icons.storefront_outlined,
-                                  'Vendors',
-                                  onOpenVendors,
-                                  highlighted:
-                                      activeModule == MoreActionsModule.vendors,
-                                ),
-                              ]
-                              .map(
-                                (chip) =>
-                                    SizedBox(width: itemWidth, child: chip),
-                              )
-                              .toList(),
-                    );
-                  },
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              // ── Module grid ────────────────────────────────────────────────
+              LayoutBuilder(
+                builder: (ctx, constraints) {
+                  final w = (constraints.maxWidth - 10) / 2;
+                  return Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: modules
+                        .map(
+                          (m) => SizedBox(
+                            width: w,
+                            child: _buildModuleChip(context, m),
+                          ),
+                        )
+                        .toList(),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Quick action button ───────────────────────────────────────────────────
+  Widget _buildQuickBtn(
+    BuildContext context,
+    _QuickData d,
+    VoidCallback? onTap,
+  ) {
+    return GestureDetector(
+      onTap: () => _handle(context, onTap),
+      child: Column(
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: d.gradient,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: d.gradient.last.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 5),
                 ),
               ],
             ),
+            child: Icon(d.icon, color: Colors.white, size: 26),
           ),
+          const SizedBox(height: 8),
+          Text(
+            d.label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: _C.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Module chip ───────────────────────────────────────────────────────────
+  Widget _buildModuleChip(BuildContext context, _ModuleData m) {
+    final isActive = activeModule == m.module;
+
+    return GestureDetector(
+      onTap: () => _handle(context, m.onTap),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isActive ? _C.accentSoft : _C.bg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isActive ? _C.accentMid : _C.divider,
+            width: isActive ? 1.5 : 1,
+          ),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: _C.accent.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : [],
         ),
-      );
-    },
-  );
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: isActive ? _C.accent.withOpacity(0.12) : _C.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: isActive ? _C.accentMid : _C.divider),
+              ),
+              child: Icon(
+                m.icon,
+                size: 16,
+                color: isActive ? _C.accent : _C.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                m.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                  color: isActive ? _C.accent : _C.textPrimary,
+                ),
+              ),
+            ),
+            if (isActive)
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: _C.accentLight,
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Data classes ───────────────────────────────────────────────────────────────
+class _QuickData {
+  const _QuickData({
+    required this.icon,
+    required this.label,
+    required this.gradient,
+    required this.softBg,
+  });
+  final IconData icon;
+  final String label;
+  final List<Color> gradient;
+  final Color softBg;
+}
+
+class _ModuleData {
+  const _ModuleData(this.icon, this.label, this.module, this.onTap);
+  final IconData icon;
+  final String label;
+  final MoreActionsModule module;
+  final VoidCallback? onTap;
 }
