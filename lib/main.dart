@@ -65,7 +65,27 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const SellerLoginPage(),
+      home: const AuthGate(),
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = Supabase.instance.client.auth;
+
+    return StreamBuilder<AuthState>(
+      stream: auth.onAuthStateChange,
+      builder: (context, snapshot) {
+        final session = snapshot.data?.session ?? auth.currentSession;
+        if (session != null) {
+          return const HomeShell();
+        }
+        return const SellerLoginPage();
+      },
     );
   }
 }
@@ -114,11 +134,6 @@ class _SellerLoginPageState extends State<SellerLoginPage> {
         email: email,
         password: password,
       );
-
-      if (!mounted) return;
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeShell()));
     } on AuthException catch (e) {
       final msg = e.message.contains('API key')
           ? 'Invalid Supabase API key. Update SUPABASE_ANON_KEY in .env with the anon (public) key from your project settings. Loaded key: ${_maskKey(dotenv.env['SUPABASE_ANON_KEY']?.trim())}'

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../services/dashboard_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../main.dart';
 
 class DashboardDrawer extends StatelessWidget {
   const DashboardDrawer({
@@ -125,7 +124,6 @@ class DashboardDrawer extends StatelessWidget {
                       icon: Icons.people_alt_rounded,
                       label: 'Customers',
                       active: activeCustomers,
-                      disabled: true,
                       onTap: onOpenCustomers,
                     ),
                     _menuItem(
@@ -714,10 +712,5 @@ class DashboardDrawer extends StatelessWidget {
       );
       return;
     }
-
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const SellerLoginPage()),
-      (route) => false,
-    );
   }
 }
