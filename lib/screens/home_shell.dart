@@ -5,7 +5,8 @@ import 'dashboard.dart';
 import 'orders.dart';
 import 'products.dart';
 import 'posBilling.dart';
-import 'analytics.dart';
+import 'Analytics.dart';
+import 'vendors.dart';
 import 'customer.dart';
 import 'delivery.dart';
 import 'store_settings.dart';
@@ -46,6 +47,7 @@ class _HomeShellState extends State<HomeShell> {
           ProductsScreen(),
           PosBillingScreen(),
           AnalyticsScreen(),
+          VendorsScreen(),
           CustomerScreen(),
           DeliveryScreen(),
           StoreSettingsScreen(),

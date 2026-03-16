@@ -266,6 +266,11 @@ class _ProductsScreenState extends State<ProductsScreen>
           ShellTab.analytics,
           closeDrawer: () => Navigator.of(context).pop(),
         ),
+        onOpenVendors: () => ShellNav.switchAfterDrawerClose(
+          context,
+          ShellTab.vendors,
+          closeDrawer: () => Navigator.of(context).pop(),
+        ),
         onOpenDelivery: () => ShellNav.switchAfterDrawerClose(
           context,
           ShellTab.delivery,
@@ -845,6 +850,7 @@ class _ProductsScreenState extends State<ProductsScreen>
                   ShellNav.switchTo(context, ShellTab.posBilling),
               onOpenAnalytics: () =>
                   ShellNav.switchTo(context, ShellTab.analytics),
+              onOpenVendors: () => ShellNav.switchTo(context, ShellTab.vendors),
               activeModule: MoreActionsModule.products,
               onAddProduct: () => _showAddSheet(context),
               onOpenAiUpload: () => _showAddSheet(context),

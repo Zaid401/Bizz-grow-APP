@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/dashboard_repository.dart';
+import '../services/orders_repository.dart';
 import 'slider.dart';
 import 'posBilling.dart';
 import 'orders.dart';
@@ -29,9 +30,11 @@ class _DashboardScreenState extends State<DashboardScreen>
     with TickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final DashboardRepository _repository = DashboardRepository();
+  final OrdersRepository _ordersRepository = OrdersRepository();
   final SupabaseClient _client = Supabase.instance.client;
 
   DashboardData? _data;
+  List<OrderRecord> _orders = const [];
   bool _loading = true;
   String? _error;
   int _unreadNotifications = 0;
@@ -98,8 +101,17 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
     try {
       final result = await _repository.fetch();
+      List<OrderRecord> orders = const [];
+      try {
+        orders = await _ordersRepository.fetchOrders();
+      } catch (_) {
+        orders = const [];
+      }
       if (!mounted) return;
-      setState(() => _data = result);
+      setState(() {
+        _data = result;
+        _orders = orders;
+      });
       await _loadUnreadNotifications();
       _fadeController.forward(from: 0);
     } catch (e) {
@@ -183,6 +195,11 @@ class _DashboardScreenState extends State<DashboardScreen>
         onOpenAnalytics: () => ShellNav.switchAfterDrawerClose(
           context,
           ShellTab.analytics,
+          closeDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
+        ),
+        onOpenVendors: () => ShellNav.switchAfterDrawerClose(
+          context,
+          ShellTab.vendors,
           closeDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
         ),
         onOpenDelivery: () => ShellNav.switchAfterDrawerClose(
@@ -532,6 +549,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // ── Stats Grid ────────────────────────────────────────────────────────────
   Widget _statsGrid(DashboardData data) {
+    final totalOrders = _ordersTotalCount;
     final cards = [
       _StatCard(
         title: "Revenue Today",
@@ -543,8 +561,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
       _StatCard(
         title: 'Orders',
-        value: '${data.ordersToday}',
-        subtitle: data.ordersToday == 0 ? 'No orders yet' : 'Placed today',
+        value: '$totalOrders',
+        subtitle: totalOrders == 0 ? 'No orders yet' : 'Total orders',
         icon: Icons.shopping_bag_rounded,
         tint: _blue,
         softBg: _blueSoft,
@@ -1095,6 +1113,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   // ── Today's Summary ───────────────────────────────────────────────────────
   Widget _todaySummary(DashboardData data) {
     final peak = _computePeakHour(data.recentOrders);
+    final totalOrders = _ordersTotalCount;
     final summaryItems = [
       _SummaryItem(
         "Revenue",
@@ -1105,7 +1124,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
       _SummaryItem(
         'Orders',
-        '${data.ordersToday}',
+        '$totalOrders',
         Icons.shopping_bag_rounded,
         _blue,
         _blueSoft,
@@ -1550,6 +1569,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ShellNav.switchTo(context, ShellTab.posBilling),
               onOpenAnalytics: () =>
                   ShellNav.switchTo(context, ShellTab.analytics),
+              onOpenVendors: () => ShellNav.switchTo(context, ShellTab.vendors),
               activeModule: MoreActionsModule.dashboard,
               onOpenAiUpload: () =>
                   ShellNav.switchTo(context, ShellTab.products),
@@ -1636,6 +1656,18 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}k';
     if (v == v.roundToDouble()) return v.toStringAsFixed(0);
     return v.toStringAsFixed(2);
+  }
+
+  int get _ordersTodayCount {
+    if (_orders.isEmpty) return _data?.ordersToday ?? 0;
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    return _orders.where((o) => !o.createdAt.toLocal().isBefore(start)).length;
+  }
+
+  int get _ordersTotalCount {
+    if (_orders.isNotEmpty) return _orders.length;
+    return _data?.ordersToday ?? 0;
   }
 
   String _formatOrderDate(DateTime date) {

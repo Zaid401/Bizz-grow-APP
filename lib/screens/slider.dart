@@ -14,6 +14,7 @@ class DashboardDrawer extends StatelessWidget {
     this.onOpenProducts,
     this.onOpenCustomers,
     this.onOpenAnalytics,
+    this.onOpenVendors,
     this.onOpenDelivery,
     this.onOpenStoreSettings,
     this.activeDashboard = false,
@@ -22,6 +23,7 @@ class DashboardDrawer extends StatelessWidget {
     this.activeProducts = false,
     this.activeCustomers = false,
     this.activeAnalytics = false,
+    this.activeVendors = false,
     this.activeDelivery = false,
     this.activeStoreSettings = false,
   });
@@ -34,6 +36,7 @@ class DashboardDrawer extends StatelessWidget {
   final VoidCallback? onOpenProducts;
   final VoidCallback? onOpenCustomers;
   final VoidCallback? onOpenAnalytics;
+  final VoidCallback? onOpenVendors;
   final VoidCallback? onOpenDelivery;
   final VoidCallback? onOpenStoreSettings;
   final bool activeDashboard;
@@ -42,6 +45,7 @@ class DashboardDrawer extends StatelessWidget {
   final bool activeProducts;
   final bool activeCustomers;
   final bool activeAnalytics;
+  final bool activeVendors;
   final bool activeDelivery;
   final bool activeStoreSettings;
 
@@ -131,6 +135,12 @@ class DashboardDrawer extends StatelessWidget {
                       label: 'Analytics',
                       active: activeAnalytics,
                       onTap: onOpenAnalytics,
+                    ),
+                    _menuItem(
+                      icon: Icons.storefront_rounded,
+                      label: 'Vendors',
+                      active: activeVendors,
+                      onTap: onOpenVendors,
                     ),
 
                     // ── Tools ──────────────────────────────────────────────

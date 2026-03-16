@@ -6,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/dashboard_repository.dart';
 import '../widgets/more_actions_sheet.dart';
-import 'analytics.dart';
+import 'Analytics.dart';
 import 'customer.dart';
 import 'dashboard.dart';
 import 'delivery.dart';
@@ -644,6 +644,13 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen>
             closeDrawer: () => Navigator.of(context).pop(),
           );
         },
+        onOpenVendors: () {
+          ShellNav.switchAfterDrawerClose(
+            context,
+            ShellTab.vendors,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
+        },
         onOpenDelivery: () {
           ShellNav.switchAfterDrawerClose(
             context,
@@ -1262,6 +1269,7 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen>
                   ShellNav.switchTo(context, ShellTab.posBilling),
               onOpenAnalytics: () =>
                   ShellNav.switchTo(context, ShellTab.analytics),
+              onOpenVendors: () => ShellNav.switchTo(context, ShellTab.vendors),
               onOpenAiUpload: () =>
                   ShellNav.switchTo(context, ShellTab.products),
             );

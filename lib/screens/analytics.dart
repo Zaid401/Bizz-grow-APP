@@ -10,7 +10,6 @@ import 'slider.dart';
 import 'delivery.dart';
 import 'store_settings.dart';
 import 'notifications.dart';
-import '../loading/skeleton_analytics.dart';
 import '../services/dashboard_repository.dart';
 import '../services/orders_repository.dart';
 import '../services/products_repository.dart';
@@ -87,8 +86,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   AnalyticsRange _range = AnalyticsRange.week;
 
-  AnimationController? _fadeController;
-  Animation<double> _fadeAnimation = const AlwaysStoppedAnimation<double>(1);
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
@@ -98,7 +97,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       duration: const Duration(milliseconds: 500),
     );
     _fadeAnimation = CurvedAnimation(
-      parent: _fadeController!,
+      parent: _fadeController,
       curve: Curves.easeOut,
     );
     _load();
@@ -106,7 +105,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   @override
   void dispose() {
-    _fadeController?.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 
@@ -155,7 +154,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         _categoryBreakdown = cats;
       });
       await _loadUnreadNotifications();
-      _fadeController?.forward(from: 0);
+      _fadeController.forward(from: 0);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -255,6 +254,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           closeDrawer: () => Navigator.of(context).pop(),
         ),
         onOpenAnalytics: () => Navigator.of(context).pop(),
+        onOpenVendors: () => ShellNav.switchAfterDrawerClose(
+          context,
+          ShellTab.vendors,
+          closeDrawer: () => Navigator.of(context).pop(),
+        ),
         activeAnalytics: true,
       ),
       bottomNavigationBar: _buildBottomNav(),
@@ -877,7 +881,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   // ── States ─────────────────────────────────────────────────────────────────
-  Widget _buildLoadingState() => const SkeletonAnalytics();
+  Widget _buildLoadingState() => const Center(
+    child: Padding(
+      padding: EdgeInsets.symmetric(vertical: 60),
+      child: CircularProgressIndicator(color: _C.accentLight),
+    ),
+  );
 
   Widget _buildErrorBanner() => Container(
     padding: const EdgeInsets.all(14),
@@ -947,6 +956,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               onOpenAnalytics: () =>
                   ShellNav.switchTo(context, ShellTab.analytics),
               activeModule: MoreActionsModule.analytics,
+              onOpenVendors: () => ShellNav.switchTo(context, ShellTab.vendors),
               onOpenAiUpload: () =>
                   ShellNav.switchTo(context, ShellTab.products),
             );

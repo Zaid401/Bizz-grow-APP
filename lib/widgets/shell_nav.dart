@@ -6,6 +6,7 @@ enum ShellTab {
   products,
   posBilling,
   analytics,
+  vendors,
   customers,
   delivery,
   storeSettings,
@@ -18,9 +19,10 @@ extension ShellTabIndex on ShellTab {
     ShellTab.products => 2,
     ShellTab.posBilling => 3,
     ShellTab.analytics => 4,
-    ShellTab.customers => 5,
-    ShellTab.delivery => 6,
-    ShellTab.storeSettings => 7,
+    ShellTab.vendors => 5,
+    ShellTab.customers => 6,
+    ShellTab.delivery => 7,
+    ShellTab.storeSettings => 8,
   };
 }
 

@@ -222,6 +222,11 @@ class _DeliveryScreenState extends State<DeliveryScreen>
           ShellTab.analytics,
           closeDrawer: () => Navigator.of(context).pop(),
         ),
+        onOpenVendors: () => ShellNav.switchAfterDrawerClose(
+          context,
+          ShellTab.vendors,
+          closeDrawer: () => Navigator.of(context).pop(),
+        ),
         onOpenStoreSettings: () => ShellNav.switchAfterDrawerClose(
           context,
           ShellTab.storeSettings,
@@ -775,6 +780,7 @@ class _DeliveryScreenState extends State<DeliveryScreen>
                   ShellNav.switchTo(context, ShellTab.posBilling),
               onOpenAnalytics: () =>
                   ShellNav.switchTo(context, ShellTab.analytics),
+              onOpenVendors: () => ShellNav.switchTo(context, ShellTab.vendors),
               activeModule: MoreActionsModule.vendors,
               onOpenAiUpload: () =>
                   ShellNav.switchTo(context, ShellTab.products),
