@@ -30,6 +30,8 @@ class PurchaseRecord {
     required this.unitQuantity,
     required this.unitPrice,
     required this.totalAmount,
+    required this.paidAmount,
+    required this.remainingAmount,
     required this.purchaseDate,
     required this.paymentStatus,
   });
@@ -43,6 +45,8 @@ class PurchaseRecord {
   final double unitQuantity;
   final double unitPrice;
   final double totalAmount;
+  final double paidAmount;
+  final double remainingAmount;
   final DateTime purchaseDate;
   final String paymentStatus;
 }
@@ -210,15 +214,71 @@ class VendorsRepository {
     await _client.from('vendors').insert(payload);
   }
 
+  Future<void> updateVendor({
+    required String vendorId,
+    required String name,
+    String? phone,
+    String? email,
+    String? address,
+    bool isActive = true,
+  }) async {
+    final payload = <String, dynamic>{
+      'name': name,
+      'is_active': isActive,
+      'phone': phone?.trim().isNotEmpty == true ? phone?.trim() : null,
+      'email': email?.trim().isNotEmpty == true ? email?.trim() : null,
+      'address': address?.trim().isNotEmpty == true ? address?.trim() : null,
+    };
+
+    const idColumns = ['id', 'vendor_id'];
+    var updated = false;
+    for (final idCol in idColumns) {
+      try {
+        await _client.from('vendors').update(payload).eq(idCol, vendorId);
+        updated = true;
+        break;
+      } on PostgrestException catch (e) {
+        if (e.code == '42703') continue;
+        rethrow;
+      }
+    }
+
+    if (!updated) {
+      throw Exception('Unable to update vendor: id column not found.');
+    }
+  }
+
+  Future<void> deleteVendor({required String vendorId}) async {
+    const idColumns = ['id', 'vendor_id'];
+    var deleted = false;
+    for (final idCol in idColumns) {
+      try {
+        await _client.from('vendors').delete().eq(idCol, vendorId);
+        deleted = true;
+        break;
+      } on PostgrestException catch (e) {
+        if (e.code == '42703') continue;
+        rethrow;
+      }
+    }
+
+    if (!deleted) {
+      throw Exception('Unable to delete vendor: id column not found.');
+    }
+  }
+
   Future<void> createPurchase({
     required String vendorId,
     String? productId,
     required String productName,
     required double quantity,
-    required double unitQuantity,
     required double unitPrice,
     required double totalAmount,
     required String paymentStatus,
+    double? paidAmount,
+    double? remainingAmount,
+    DateTime? purchaseDate,
+    String? note,
     String? storeId,
   }) async {
     final targetStoreId = await _resolveStoreId(storeIdOverride: storeId);
@@ -228,20 +288,94 @@ class VendorsRepository {
       );
     }
 
-    final payload = <String, dynamic>{
+    final basePayload = <String, dynamic>{
       'store_id': targetStoreId,
       'vendor_id': vendorId,
       if (productId != null && productId.trim().isNotEmpty)
         'product_id': productId.trim(),
       'product_name': productName,
       'quantity': quantity,
-      'unit_quantity': unitQuantity,
       'unit_price': unitPrice,
       'total_amount': totalAmount,
       'payment_status': paymentStatus,
+      if (paidAmount != null) 'paid_amount': paidAmount,
+      if (remainingAmount != null) 'remaining_amount': remainingAmount,
+      if (purchaseDate != null) 'purchase_date': purchaseDate.toIso8601String(),
+      if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
     };
 
-    await _client.from('vendor_purchases').insert(payload);
+    await _client.from('vendor_purchases').insert(basePayload);
+  }
+
+  Future<void> updatePurchasePayment({
+    required String purchaseId,
+    required double paidAmount,
+    required double remainingAmount,
+    required String paymentStatus,
+    double? paymentAmount,
+    String? paymentMethod,
+    String? comment,
+    String? storeId,
+  }) async {
+    const idColumns = ['id', 'purchase_id'];
+    var updated = false;
+    final payload = <String, dynamic>{
+      'paid_amount': paidAmount,
+      'remaining_amount': remainingAmount,
+      'payment_status': paymentStatus,
+    };
+
+    for (final idCol in idColumns) {
+      try {
+        await _client
+            .from('vendor_purchases')
+            .update(payload)
+            .eq(idCol, purchaseId);
+        updated = true;
+        break;
+      } on PostgrestException catch (e) {
+        if (e.code == '42703') continue;
+        rethrow;
+      }
+    }
+
+    if (!updated) {
+      throw Exception(
+        'Unable to update payment: purchase id column not found.',
+      );
+    }
+
+    if (paymentAmount != null && paymentAmount > 0) {
+      final targetStoreId = await _resolveStoreId(storeIdOverride: storeId);
+      if (targetStoreId == null || targetStoreId.isEmpty) {
+        throw Exception(
+          'No store is linked to the current user. Please link a store first.',
+        );
+      }
+      final normalizedMethod = _normalizePaymentMethod(paymentMethod) ?? 'cash';
+      final paymentPayload = <String, dynamic>{
+        'purchase_id': purchaseId,
+        'store_id': targetStoreId,
+        'amount': paymentAmount,
+        'payment_method': normalizedMethod,
+        if (comment != null && comment.trim().isNotEmpty)
+          'comment': comment.trim(),
+      };
+      await _client.from('vendor_payments').insert(paymentPayload);
+    }
+  }
+
+  String? _normalizePaymentMethod(String? value) {
+    if (value == null) return null;
+    final trimmed = value.trim().toLowerCase();
+    if (trimmed.isEmpty) return null;
+    if (trimmed == 'cash') return 'cash';
+    if (trimmed == 'upi') return 'upi';
+    if (trimmed == 'card') return 'card';
+    if (trimmed == 'bank transfer' || trimmed == 'bank_transfer') {
+      return 'bank_transfer';
+    }
+    return trimmed.replaceAll(' ', '_');
   }
 
   Future<String?> _resolveStoreId({String? storeIdOverride}) async {
@@ -346,6 +480,10 @@ class VendorsRepository {
       unitPrice: parseNum(row['unit_price'] ?? row['price'] ?? row['rate']),
       totalAmount: parseNum(
         row['total_amount'] ?? row['amount'] ?? row['total'],
+      ),
+      paidAmount: parseNum(row['paid_amount'] ?? row['paid'] ?? 0),
+      remainingAmount: parseNum(
+        row['remaining_amount'] ?? row['balance'] ?? row['due'] ?? 0,
       ),
       purchaseDate: parseDate(
         row['purchase_date'] ?? row['date'] ?? row['created_at'],
