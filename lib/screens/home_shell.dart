@@ -22,6 +22,7 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   late int _index;
+  final List<int> _history = [];
 
   @override
   void initState() {
@@ -31,27 +32,46 @@ class _HomeShellState extends State<HomeShell> {
 
   void _setIndex(int value) {
     if (_index == value) return;
+    _history.add(_index);
     setState(() => _index = value);
+  }
+
+  Future<bool> _handleWillPop() async {
+    if (_history.isNotEmpty) {
+      final last = _history.removeLast();
+      setState(() => _index = last);
+      return false;
+    }
+
+    if (_index != ShellTab.dashboard.index) {
+      setState(() => _index = ShellTab.dashboard.index);
+      return false;
+    }
+
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
-    return ShellNav(
-      index: _index,
-      setIndex: _setIndex,
-      child: IndexedStack(
+    return WillPopScope(
+      onWillPop: _handleWillPop,
+      child: ShellNav(
         index: _index,
-        children: const [
-          DashboardScreen(),
-          OrdersScreen(),
-          ProductsScreen(),
-          PosBillingScreen(),
-          AnalyticsScreen(),
-          VendorsScreen(),
-          CustomerScreen(),
-          DeliveryScreen(),
-          StoreSettingsScreen(),
-        ],
+        setIndex: _setIndex,
+        child: IndexedStack(
+          index: _index,
+          children: const [
+            DashboardScreen(),
+            OrdersScreen(),
+            ProductsScreen(),
+            PosBillingScreen(),
+            AnalyticsScreen(),
+            VendorsScreen(),
+            CustomerScreen(),
+            DeliveryScreen(),
+            StoreSettingsScreen(),
+          ],
+        ),
       ),
     );
   }
