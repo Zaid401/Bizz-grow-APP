@@ -63,7 +63,7 @@ class _OrdersScreenState extends State<OrdersScreen>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   OrderChannel _selectedChannel = OrderChannel.all;
   OrderStatus _selectedStatus = OrderStatus.all;
-  OrderTimeline _selectedTimeline = OrderTimeline.today;
+  OrderTimeline _selectedTimeline = OrderTimeline.allTime;
   final TextEditingController _searchCtrl = TextEditingController();
 
   final OrdersRepository _repository = OrdersRepository();
