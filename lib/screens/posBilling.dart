@@ -187,6 +187,13 @@ class _PosBillingScreenState extends State<PosBillingScreen> {
             closeDrawer: () => Navigator.of(context).pop(),
           );
         },
+        onOpenAiUpload: () {
+          ShellNav.switchAfterDrawerClose(
+            context,
+            ShellTab.aiUpload,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
+        },
         onOpenDelivery: () {
           ShellNav.switchAfterDrawerClose(
             context,
@@ -307,7 +314,7 @@ class _PosBillingScreenState extends State<PosBillingScreen> {
               onOpenVendors: () => ShellNav.switchTo(context, ShellTab.vendors),
               activeModule: MoreActionsModule.posBilling,
               onOpenAiUpload: () =>
-                  ShellNav.switchTo(context, ShellTab.products),
+                  ShellNav.switchTo(context, ShellTab.aiUpload),
             );
           }
         },

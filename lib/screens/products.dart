@@ -15,6 +15,7 @@ import 'Analytics.dart';
 import 'delivery.dart';
 import 'store_settings.dart';
 import 'notifications.dart';
+import 'AI_upload.dart';
 import '../services/products_repository.dart';
 import '../services/dashboard_repository.dart';
 import '../widgets/more_actions_sheet.dart';
@@ -22,6 +23,7 @@ import '../widgets/top_header.dart';
 import '../widgets/shell_nav.dart';
 
 final String _supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+const int _lowStockThreshold = 5;
 
 // ── Shared Palette ─────────────────────────────────────────────────────────────
 class _C {
@@ -71,8 +73,6 @@ class _ProductsScreenState extends State<ProductsScreen>
 
   AnimationController? _fadeController;
   Animation<double>? _fadeAnimation;
-
-  static const int _lowStockThreshold = 5;
 
   @override
   void initState() {
@@ -207,10 +207,13 @@ class _ProductsScreenState extends State<ProductsScreen>
       name: product.name,
       category: product.category,
       price: product.price,
+      comparePrice: product.comparePrice,
       stock: newStock,
+      description: product.description,
       imageUrl: product.imageUrl,
       status: isOut ? 'out_of_stock' : product.status,
       categoryTag: product.categoryTag,
+      isAvailable: product.isAvailable,
       isLowStock: isLow,
       isOutOfStock: isOut,
     );
@@ -228,6 +231,58 @@ class _ProductsScreenState extends State<ProductsScreen>
         list[index] = product;
         _products = list;
         _error = 'Stock update failed.';
+      });
+    }
+  }
+
+  void _applyProductUpdate(ProductItem updated) {
+    final index = _products.indexWhere((p) => p.id == updated.id);
+    if (index < 0) return;
+    setState(() {
+      final list = [..._products];
+      list[index] = updated;
+      _products = list;
+    });
+  }
+
+  Future<void> _deleteProduct(ProductItem product) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete product?'),
+        content: Text('This will permanently delete "${product.name}".'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    final index = _products.indexWhere((p) => p.id == product.id);
+    if (index < 0) return;
+    final previous = [..._products];
+    setState(() {
+      final list = [..._products]..removeAt(index);
+      _products = list;
+    });
+    try {
+      await _repository.deleteProduct(productId: product.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Product deleted.')));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _products = previous;
+        _error = 'Delete failed: $e';
       });
     }
   }
@@ -269,6 +324,11 @@ class _ProductsScreenState extends State<ProductsScreen>
         onOpenVendors: () => ShellNav.switchAfterDrawerClose(
           context,
           ShellTab.vendors,
+          closeDrawer: () => Navigator.of(context).pop(),
+        ),
+        onOpenAiUpload: () => ShellNav.switchAfterDrawerClose(
+          context,
+          ShellTab.aiUpload,
           closeDrawer: () => Navigator.of(context).pop(),
         ),
         onOpenDelivery: () => ShellNav.switchAfterDrawerClose(
@@ -313,7 +373,7 @@ class _ProductsScreenState extends State<ProductsScreen>
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     // AI banner
-                    _AIBanner(onTap: () => _showAddSheet(context)),
+                    _AIBanner(onTap: _openAiUpload),
                     const SizedBox(height: 20),
                     // Page title
                     _buildTitleRow(),
@@ -349,8 +409,14 @@ class _ProductsScreenState extends State<ProductsScreen>
                                 products: _filteredProducts,
                                 onIncrease: (p) => _updateStock(p, 1),
                                 onDecrease: (p) => _updateStock(p, -1),
+                                onUpdated: _applyProductUpdate,
+                                onDelete: _deleteProduct,
                               )
-                            : _ProductGrid(products: _filteredProducts),
+                            : _ProductGrid(
+                                products: _filteredProducts,
+                                onUpdated: _applyProductUpdate,
+                                onDelete: _deleteProduct,
+                              ),
                       ),
                   ]),
                 ),
@@ -445,7 +511,7 @@ class _ProductsScreenState extends State<ProductsScreen>
         _OutlineBtn(
           icon: Icons.auto_awesome_rounded,
           label: 'AI Upload',
-          onTap: () {},
+          onTap: _openAiUpload,
         ),
         _PrimaryBtn(
           icon: Icons.add_rounded,
@@ -853,7 +919,8 @@ class _ProductsScreenState extends State<ProductsScreen>
               onOpenVendors: () => ShellNav.switchTo(context, ShellTab.vendors),
               activeModule: MoreActionsModule.products,
               onAddProduct: () => _showAddSheet(context),
-              onOpenAiUpload: () => _showAddSheet(context),
+              onOpenAiUpload: () =>
+                  ShellNav.switchTo(context, ShellTab.aiUpload),
             );
           }
         },
@@ -890,6 +957,16 @@ class _ProductsScreenState extends State<ProductsScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _AddProductSheet(categories: cats),
+    );
+  }
+
+  void _openAiUpload() {
+    ShellNav.switchTo(
+      context,
+      ShellTab.aiUpload,
+      fallback: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const AiUploadScreen())),
     );
   }
 }
@@ -1202,10 +1279,14 @@ class _ProductTable extends StatelessWidget {
     required this.products,
     required this.onIncrease,
     required this.onDecrease,
+    required this.onUpdated,
+    required this.onDelete,
   });
   final List<ProductItem> products;
   final ValueChanged<ProductItem> onIncrease;
   final ValueChanged<ProductItem> onDecrease;
+  final ValueChanged<ProductItem> onUpdated;
+  final Future<void> Function(ProductItem) onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -1234,6 +1315,8 @@ class _ProductTable extends StatelessWidget {
                   compact: compact,
                   onIncrease: () => onIncrease(p),
                   onDecrease: () => onDecrease(p),
+                  onUpdated: onUpdated,
+                  onDelete: onDelete,
                 ),
               ),
             ],
@@ -1286,11 +1369,15 @@ class _ProductRow extends StatelessWidget {
     required this.compact,
     required this.onIncrease,
     required this.onDecrease,
+    required this.onUpdated,
+    required this.onDelete,
   });
   final ProductItem product;
   final bool compact;
   final VoidCallback onIncrease;
   final VoidCallback onDecrease;
+  final ValueChanged<ProductItem> onUpdated;
+  final Future<void> Function(ProductItem) onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -1300,11 +1387,13 @@ class _ProductRow extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: _C.divider, width: 0.8)),
       ),
-      child: compact ? _compactLayout(badge) : _fullLayout(badge),
+      child: compact
+          ? _compactLayout(context, badge)
+          : _fullLayout(context, badge),
     );
   }
 
-  Widget _compactLayout(_BadgeData badge) => Column(
+  Widget _compactLayout(BuildContext context, _BadgeData badge) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Row(
@@ -1332,6 +1421,8 @@ class _ProductRow extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(width: 8),
+          _buildMenu(context),
         ],
       ),
       const SizedBox(height: 10),
@@ -1381,7 +1472,7 @@ class _ProductRow extends StatelessWidget {
     ],
   );
 
-  Widget _fullLayout(_BadgeData badge) => Row(
+  Widget _fullLayout(BuildContext context, _BadgeData badge) => Row(
     crossAxisAlignment: CrossAxisAlignment.center,
     children: [
       Expanded(
@@ -1456,14 +1547,55 @@ class _ProductRow extends StatelessWidget {
           ],
         ),
       ),
+      const SizedBox(width: 6),
+      _buildMenu(context),
     ],
+  );
+
+  Widget _buildMenu(BuildContext context) => Container(
+    decoration: BoxDecoration(
+      color: _C.surface,
+      shape: BoxShape.circle,
+      border: Border.all(color: _C.divider),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.06),
+          blurRadius: 6,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: PopupMenuButton<String>(
+      tooltip: 'More actions',
+      padding: EdgeInsets.zero,
+      icon: const Icon(
+        Icons.more_vert_rounded,
+        size: 18,
+        color: _C.textSecondary,
+      ),
+      onSelected: (value) {
+        _handleProductMenuAction(context, product, value, onUpdated, onDelete);
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(value: 'View', child: Text('View')),
+        PopupMenuItem(value: 'Edit', child: Text('Edit')),
+        PopupMenuItem(value: 'Create Flyers', child: Text('Create Flyers')),
+        PopupMenuItem(value: 'Delete', child: Text('Delete')),
+      ],
+    ),
   );
 }
 
 // ── Product Grid ───────────────────────────────────────────────────────────────
 class _ProductGrid extends StatelessWidget {
-  const _ProductGrid({required this.products});
+  const _ProductGrid({
+    required this.products,
+    required this.onUpdated,
+    required this.onDelete,
+  });
   final List<ProductItem> products;
+  final ValueChanged<ProductItem> onUpdated;
+  final Future<void> Function(ProductItem) onDelete;
 
   @override
   Widget build(BuildContext context) => GridView.builder(
@@ -1476,13 +1608,23 @@ class _ProductGrid extends StatelessWidget {
       mainAxisSpacing: 12,
       mainAxisExtent: 260,
     ),
-    itemBuilder: (_, i) => _ProductCard(product: products[i]),
+    itemBuilder: (_, i) => _ProductCard(
+      product: products[i],
+      onUpdated: onUpdated,
+      onDelete: onDelete,
+    ),
   );
 }
 
 class _ProductCard extends StatelessWidget {
-  const _ProductCard({required this.product});
+  const _ProductCard({
+    required this.product,
+    required this.onUpdated,
+    required this.onDelete,
+  });
   final ProductItem product;
+  final ValueChanged<ProductItem> onUpdated;
+  final Future<void> Function(ProductItem) onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -1506,25 +1648,73 @@ class _ProductCard extends StatelessWidget {
           // Thumbnail
           ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(17)),
-            child: Container(
-              height: 120,
-              width: double.infinity,
-              color: _C.accentSoft,
-              child: product.imageUrl.isEmpty
-                  ? const Icon(
-                      Icons.inventory_2_rounded,
-                      color: _C.accentLight,
-                      size: 36,
-                    )
-                  : Image.network(
-                      product.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.broken_image_rounded,
-                        color: _C.accentLight,
-                        size: 36,
-                      ),
+            child: Stack(
+              children: [
+                Container(
+                  height: 120,
+                  width: double.infinity,
+                  color: _C.accentSoft,
+                  child: product.imageUrl.isEmpty
+                      ? const Icon(
+                          Icons.inventory_2_rounded,
+                          color: _C.accentLight,
+                          size: 36,
+                        )
+                      : Image.network(
+                          product.imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.broken_image_rounded,
+                            color: _C.accentLight,
+                            size: 36,
+                          ),
+                        ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.9),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
+                    child: PopupMenuButton<String>(
+                      tooltip: 'More actions',
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(
+                        Icons.more_vert_rounded,
+                        size: 18,
+                        color: _C.textSecondary,
+                      ),
+                      onSelected: (value) {
+                        _handleProductMenuAction(
+                          context,
+                          product,
+                          value,
+                          onUpdated,
+                          onDelete,
+                        );
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(value: 'View', child: Text('View')),
+                        PopupMenuItem(value: 'Edit', child: Text('Edit')),
+                        PopupMenuItem(
+                          value: 'Create Flyers',
+                          child: Text('Create Flyers'),
+                        ),
+                        PopupMenuItem(value: 'Delete', child: Text('Delete')),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           Expanded(
@@ -2264,6 +2454,764 @@ class _BadgeData {
   const _BadgeData(this.label, this.color, this.softBg);
   final String label;
   final Color color, softBg;
+}
+
+void _handleProductMenuAction(
+  BuildContext context,
+  ProductItem product,
+  String value,
+  ValueChanged<ProductItem> onUpdated,
+  Future<void> Function(ProductItem) onDelete,
+) {
+  switch (value) {
+    case 'View':
+      _showProductDetailsDialog(context, product, onUpdated);
+      return;
+    case 'Edit':
+      _showEditProductDialog(context, product, onUpdated);
+      return;
+    case 'Create Flyers':
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Create Flyers tapped')));
+      return;
+    case 'Delete':
+      onDelete(product);
+      return;
+    default:
+      return;
+  }
+}
+
+void _showProductDetailsDialog(
+  BuildContext context,
+  ProductItem product,
+  ValueChanged<ProductItem> onUpdated,
+) {
+  final category = product.categoryTag.isNotEmpty
+      ? product.categoryTag
+      : product.category;
+  final isActive = product.isAvailable;
+  final inStock = !product.isOutOfStock && product.stock > 0 && isActive;
+  final availabilityText = inStock ? 'Available for sale' : 'Out of stock';
+  final availabilityColor = inStock ? _C.green : _C.red;
+
+  showDialog(
+    context: context,
+    builder: (dialogContext) => Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 520;
+              final image = ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  width: 120,
+                  height: 120,
+                  color: _C.accentSoft,
+                  child: product.imageUrl.isEmpty
+                      ? const Icon(
+                          Icons.inventory_2_rounded,
+                          color: _C.accentLight,
+                          size: 44,
+                        )
+                      : Image.network(
+                          product.imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.broken_image_rounded,
+                            color: _C.accentLight,
+                            size: 44,
+                          ),
+                        ),
+                ),
+              );
+
+              final details = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.name,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: _C.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: inStock ? _C.greenSoft : _C.redSoft,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      isActive ? 'active' : 'inactive',
+                      style: TextStyle(
+                        color: isActive ? _C.green : _C.red,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Price',
+                    style: TextStyle(fontSize: 12, color: _C.textSecondary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '₹${product.price.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: _C.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Category',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _C.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              category.isEmpty ? '-' : category,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: _C.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Stock Quantity',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _C.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${product.stock} units',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: _C.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Availability',
+                    style: TextStyle(fontSize: 12, color: _C.textSecondary),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: availabilityColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        availabilityText,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: availabilityColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Description',
+                    style: TextStyle(fontSize: 12, color: _C.textSecondary),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    product.description.isEmpty
+                        ? 'Description not available.'
+                        : product.description,
+                    style: const TextStyle(color: _C.textPrimary, fontSize: 13),
+                  ),
+                ],
+              );
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'Product Details',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: _C.textPrimary,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                        color: _C.textSecondary,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (isNarrow) ...[
+                    Center(child: image),
+                    const SizedBox(height: 16),
+                    details,
+                  ] else ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        image,
+                        const SizedBox(width: 18),
+                        Expanded(child: details),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                            _showEditProductDialog(context, product, onUpdated);
+                          },
+                          icon: const Icon(Icons.edit_rounded, size: 18),
+                          label: const Text('Edit Product'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _C.accent,
+                            side: const BorderSide(color: _C.accent),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Create Flyer')),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.auto_awesome_rounded,
+                            size: 18,
+                          ),
+                          label: const Text('Create Flyer'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _C.textPrimary,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: BorderSide(color: _C.divider),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _C.textSecondary,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: BorderSide(color: _C.divider),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text('Close'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+Future<void> _showEditProductDialog(
+  BuildContext context,
+  ProductItem product,
+  ValueChanged<ProductItem> onUpdated,
+) async {
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) => _EditProductDialog(
+      product: product,
+      parentContext: context,
+      onUpdated: onUpdated,
+    ),
+  );
+}
+
+class _EditProductDialog extends StatefulWidget {
+  const _EditProductDialog({
+    required this.product,
+    required this.parentContext,
+    required this.onUpdated,
+  });
+
+  final ProductItem product;
+  final BuildContext parentContext;
+  final ValueChanged<ProductItem> onUpdated;
+
+  @override
+  State<_EditProductDialog> createState() => _EditProductDialogState();
+}
+
+class _EditProductDialogState extends State<_EditProductDialog> {
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _priceCtrl;
+  late final TextEditingController _comparePriceCtrl;
+  late final TextEditingController _categoryCtrl;
+  late final TextEditingController _stockCtrl;
+  late final TextEditingController _descCtrl;
+  final ProductsRepository _repository = ProductsRepository();
+
+  bool _isAvailable = true;
+  bool _isSubmitting = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final product = widget.product;
+    _nameCtrl = TextEditingController(text: product.name);
+    _priceCtrl = TextEditingController(
+      text: product.price == 0 ? '' : product.price.toStringAsFixed(0),
+    );
+    _comparePriceCtrl = TextEditingController(
+      text: product.comparePrice == 0
+          ? ''
+          : product.comparePrice.toStringAsFixed(0),
+    );
+    _categoryCtrl = TextEditingController(text: product.category);
+    _stockCtrl = TextEditingController(
+      text: product.stock == 0 ? '' : product.stock.toString(),
+    );
+    _descCtrl = TextEditingController(text: product.description);
+    _isAvailable = product.isAvailable;
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _priceCtrl.dispose();
+    _comparePriceCtrl.dispose();
+    _categoryCtrl.dispose();
+    _stockCtrl.dispose();
+    _descCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _nameCtrl.text.trim();
+    final priceRaw = _priceCtrl.text.trim();
+    if (name.isEmpty || priceRaw.isEmpty) {
+      setState(() => _error = 'Product name and price are required.');
+      return;
+    }
+    setState(() {
+      _error = null;
+      _isSubmitting = true;
+    });
+    try {
+      final category = _categoryCtrl.text.trim();
+      final price = double.tryParse(priceRaw) ?? 0;
+      final comparePrice = double.tryParse(_comparePriceCtrl.text.trim()) ?? 0;
+      final stock = int.tryParse(_stockCtrl.text.trim()) ?? 0;
+      final isOut = stock <= 0;
+      final isLow = stock > 0 && stock <= _lowStockThreshold;
+      await _repository.updateProduct(
+        productId: widget.product.id,
+        name: name,
+        category: category,
+        price: price,
+        comparePrice: comparePrice,
+        stock: stock,
+        description: _descCtrl.text.trim(),
+        isAvailable: _isAvailable,
+      );
+      if (!mounted) return;
+      final updated = ProductItem(
+        id: widget.product.id,
+        name: name,
+        category: category,
+        price: price,
+        comparePrice: comparePrice,
+        stock: stock,
+        description: _descCtrl.text.trim(),
+        imageUrl: widget.product.imageUrl,
+        status: isOut ? 'out_of_stock' : widget.product.status,
+        categoryTag: widget.product.categoryTag,
+        isAvailable: _isAvailable,
+        isLowStock: isLow,
+        isOutOfStock: isOut,
+      );
+      widget.onUpdated(updated);
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(widget.parentContext).showSnackBar(
+        const SnackBar(content: Text('Product updated successfully.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Update failed: $e';
+        _isSubmitting = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'Edit Product',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: _C.textPrimary,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                      color: _C.textSecondary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'Product Name *',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: _C.textSecondary,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _SheetField(controller: _nameCtrl, hint: 'Enter product name'),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Price (₹) *',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _C.textSecondary,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          _SheetField(
+                            controller: _priceCtrl,
+                            hint: '0',
+                            keyboard: TextInputType.number,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Compare Price',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _C.textSecondary,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          _SheetField(
+                            controller: _comparePriceCtrl,
+                            hint: '0',
+                            keyboard: TextInputType.number,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Category',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _C.textSecondary,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          _SheetField(
+                            controller: _categoryCtrl,
+                            hint: 'Category',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Stock Quantity',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _C.textSecondary,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          _SheetField(
+                            controller: _stockCtrl,
+                            hint: '0',
+                            keyboard: TextInputType.number,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'Description',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: _C.textSecondary,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _SheetField(
+                  controller: _descCtrl,
+                  hint: 'Enter product description…',
+                  maxLines: 4,
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _C.bg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _C.divider),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.storefront_rounded,
+                        color: _C.accentLight,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'Available for sale',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: _C.textPrimary,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      Switch.adaptive(
+                        value: _isAvailable,
+                        activeColor: _C.accentLight,
+                        onChanged: (value) =>
+                            setState(() => _isAvailable = value),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: _C.redSoft,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _C.red.withOpacity(0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.error_outline_rounded,
+                          color: _C.red,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _error!,
+                            style: const TextStyle(color: _C.red, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _isSubmitting
+                            ? null
+                            : () => Navigator.of(context).pop(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: _C.bg,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: _C.divider),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: _C.textSecondary,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _isSubmitting ? null : _save,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [_C.accentLight, _C.accent],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _C.accent.withOpacity(0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: _isSubmitting
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Save Changes',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 _BadgeData _stockBadge(ProductItem p) {

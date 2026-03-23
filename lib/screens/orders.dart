@@ -298,6 +298,11 @@ class _OrdersScreenState extends State<OrdersScreen>
           ShellTab.vendors,
           closeDrawer: () => Navigator.of(context).pop(),
         ),
+        onOpenAiUpload: () => ShellNav.switchAfterDrawerClose(
+          context,
+          ShellTab.aiUpload,
+          closeDrawer: () => Navigator.of(context).pop(),
+        ),
         onOpenDelivery: () => ShellNav.switchAfterDrawerClose(
           context,
           ShellTab.delivery,
@@ -997,7 +1002,7 @@ class _OrdersScreenState extends State<OrdersScreen>
               onOpenVendors: () => ShellNav.switchTo(context, ShellTab.vendors),
               activeModule: MoreActionsModule.orders,
               onOpenAiUpload: () =>
-                  ShellNav.switchTo(context, ShellTab.products),
+                  ShellNav.switchTo(context, ShellTab.aiUpload),
             );
           }
         },

@@ -651,6 +651,13 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen>
             closeDrawer: () => Navigator.of(context).pop(),
           );
         },
+        onOpenAiUpload: () {
+          ShellNav.switchAfterDrawerClose(
+            context,
+            ShellTab.aiUpload,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
+        },
         onOpenDelivery: () {
           ShellNav.switchAfterDrawerClose(
             context,
@@ -1271,7 +1278,7 @@ class _StoreSettingsScreenState extends State<StoreSettingsScreen>
                   ShellNav.switchTo(context, ShellTab.analytics),
               onOpenVendors: () => ShellNav.switchTo(context, ShellTab.vendors),
               onOpenAiUpload: () =>
-                  ShellNav.switchTo(context, ShellTab.products),
+                  ShellNav.switchTo(context, ShellTab.aiUpload),
             );
           }
         },

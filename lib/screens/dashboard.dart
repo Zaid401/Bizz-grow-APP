@@ -202,6 +202,11 @@ class _DashboardScreenState extends State<DashboardScreen>
           ShellTab.vendors,
           closeDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
         ),
+        onOpenAiUpload: () => ShellNav.switchAfterDrawerClose(
+          context,
+          ShellTab.aiUpload,
+          closeDrawer: () => _scaffoldKey.currentState?.closeDrawer(),
+        ),
         onOpenDelivery: () => ShellNav.switchAfterDrawerClose(
           context,
           ShellTab.delivery,
@@ -1572,7 +1577,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               onOpenVendors: () => ShellNav.switchTo(context, ShellTab.vendors),
               activeModule: MoreActionsModule.dashboard,
               onOpenAiUpload: () =>
-                  ShellNav.switchTo(context, ShellTab.products),
+                  ShellNav.switchTo(context, ShellTab.aiUpload),
             );
           }
         },

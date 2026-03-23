@@ -259,6 +259,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           ShellTab.vendors,
           closeDrawer: () => Navigator.of(context).pop(),
         ),
+        onOpenAiUpload: () => ShellNav.switchAfterDrawerClose(
+          context,
+          ShellTab.aiUpload,
+          closeDrawer: () => Navigator.of(context).pop(),
+        ),
         activeAnalytics: true,
       ),
       bottomNavigationBar: _buildBottomNav(),
@@ -958,7 +963,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               activeModule: MoreActionsModule.analytics,
               onOpenVendors: () => ShellNav.switchTo(context, ShellTab.vendors),
               onOpenAiUpload: () =>
-                  ShellNav.switchTo(context, ShellTab.products),
+                  ShellNav.switchTo(context, ShellTab.aiUpload),
             );
           }
         },

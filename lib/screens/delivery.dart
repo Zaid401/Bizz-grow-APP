@@ -227,6 +227,11 @@ class _DeliveryScreenState extends State<DeliveryScreen>
           ShellTab.vendors,
           closeDrawer: () => Navigator.of(context).pop(),
         ),
+        onOpenAiUpload: () => ShellNav.switchAfterDrawerClose(
+          context,
+          ShellTab.aiUpload,
+          closeDrawer: () => Navigator.of(context).pop(),
+        ),
         onOpenStoreSettings: () => ShellNav.switchAfterDrawerClose(
           context,
           ShellTab.storeSettings,
@@ -783,7 +788,7 @@ class _DeliveryScreenState extends State<DeliveryScreen>
               onOpenVendors: () => ShellNav.switchTo(context, ShellTab.vendors),
               activeModule: MoreActionsModule.vendors,
               onOpenAiUpload: () =>
-                  ShellNav.switchTo(context, ShellTab.products),
+                  ShellNav.switchTo(context, ShellTab.aiUpload),
             );
           }
         },

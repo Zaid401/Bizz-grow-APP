@@ -544,6 +544,13 @@ class _VendorsScreenState extends State<VendorsScreen>
             closeDrawer: () => Navigator.of(context).pop(),
           );
         },
+        onOpenAiUpload: () {
+          ShellNav.switchAfterDrawerClose(
+            context,
+            ShellTab.aiUpload,
+            closeDrawer: () => Navigator.of(context).pop(),
+          );
+        },
         onOpenVendors: () => Navigator.of(context).pop(),
         activeVendors: true,
       ),
@@ -1890,7 +1897,7 @@ class _VendorsScreenState extends State<VendorsScreen>
               onOpenVendors: () => ShellNav.switchTo(context, ShellTab.vendors),
               activeModule: MoreActionsModule.vendors,
               onOpenAiUpload: () =>
-                  ShellNav.switchTo(context, ShellTab.products),
+                  ShellNav.switchTo(context, ShellTab.aiUpload),
             );
           }
         },

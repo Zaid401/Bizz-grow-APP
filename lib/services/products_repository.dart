@@ -7,10 +7,13 @@ class ProductItem {
     required this.name,
     required this.category,
     required this.price,
+    required this.comparePrice,
     required this.stock,
+    required this.description,
     required this.imageUrl,
     required this.status,
     required this.categoryTag,
+    required this.isAvailable,
     required this.isLowStock,
     required this.isOutOfStock,
   });
@@ -19,10 +22,13 @@ class ProductItem {
   final String name;
   final String category;
   final double price;
+  final double comparePrice;
   final int stock;
+  final String description;
   final String imageUrl;
   final String status;
   final String categoryTag;
+  final bool isAvailable;
   final bool isLowStock;
   final bool isOutOfStock;
 }
@@ -115,6 +121,55 @@ class ProductsRepository {
     throw Exception('Unable to update stock: column not found.');
   }
 
+  Future<void> updateProduct({
+    required String productId,
+    required String name,
+    required String category,
+    required double price,
+    required double comparePrice,
+    required int stock,
+    required String description,
+    required bool isAvailable,
+  }) async {
+    final payload = {
+      'name': name,
+      'category': category,
+      'price': price,
+      'compare_price': comparePrice,
+      'stock_quantity': stock,
+      'description': description,
+      'is_available': isAvailable,
+    };
+
+    const idColumns = ['id', 'product_id'];
+    for (final idCol in idColumns) {
+      try {
+        await _client.from('products').update(payload).eq(idCol, productId);
+        return;
+      } on PostgrestException catch (e) {
+        if (e.code == '42703') continue;
+        rethrow;
+      }
+    }
+
+    throw Exception('Unable to update product: column not found.');
+  }
+
+  Future<void> deleteProduct({required String productId}) async {
+    const idColumns = ['id', 'product_id'];
+    for (final idCol in idColumns) {
+      try {
+        await _client.from('products').delete().eq(idCol, productId);
+        return;
+      } on PostgrestException catch (e) {
+        if (e.code == '42703') continue;
+        rethrow;
+      }
+    }
+
+    throw Exception('Unable to delete product: column not found.');
+  }
+
   Future<String?> _resolveStoreId({String? storeIdOverride}) async {
     if (storeIdOverride != null && storeIdOverride.isNotEmpty) {
       return storeIdOverride;
@@ -171,6 +226,8 @@ class ProductsRepository {
         .toString();
     final priceRaw =
         row['price'] ?? row['mrp'] ?? row['sale_price'] ?? row['amount'] ?? 0;
+    final comparePriceRaw =
+        row['compare_price'] ?? row['comparePrice'] ?? row['mrp'] ?? 0;
     final stockRaw =
         row['stock'] ??
         row['stock_quantity'] ??
@@ -178,12 +235,15 @@ class ProductsRepository {
         row['qty'] ??
         0;
     final status = (row['status'] ?? row['state'] ?? 'active').toString();
+    final description =
+        (row['description'] ?? row['desc'] ?? row['details'] ?? '').toString();
     final image =
         (row['image'] ?? row['image_url'] ?? row['thumbnail'] ?? row['photo'])
             ?.toString() ??
         '';
 
     final price = _asDouble(priceRaw);
+    final comparePrice = _asDouble(comparePriceRaw);
     final stock = _asInt(stockRaw);
 
     final lowThresholdRaw = row['low_stock_threshold'] ?? row['min_stock'] ?? 5;
@@ -193,16 +253,23 @@ class ProductsRepository {
 
     final isOutOfStock = stock <= 0;
     final isLowStock = stock > 0 && stock <= lowThreshold;
+    final isAvailable = _asBool(
+      row['is_available'] ?? row['available'] ?? row['isAvailable'],
+      fallback: status.toLowerCase() == 'active',
+    );
 
     return ProductItem(
       id: id,
       name: name,
       category: category,
       price: price,
+      comparePrice: comparePrice,
       stock: stock,
+      description: description,
       imageUrl: image,
       status: status,
       categoryTag: categoryTag,
+      isAvailable: isAvailable,
       isLowStock: isLowStock,
       isOutOfStock: isOutOfStock,
     );
@@ -224,5 +291,25 @@ class ProductsRepository {
       if (parsed != null) return parsed;
     }
     return 0;
+  }
+
+  bool _asBool(dynamic value, {required bool fallback}) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final lowered = value.toLowerCase().trim();
+      if (['true', '1', 'yes', 'y', 'active', 'available'].contains(lowered))
+        return true;
+      if ([
+        'false',
+        '0',
+        'no',
+        'n',
+        'inactive',
+        'unavailable',
+      ].contains(lowered))
+        return false;
+    }
+    return fallback;
   }
 }

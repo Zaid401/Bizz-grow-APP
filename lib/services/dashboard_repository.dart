@@ -221,6 +221,46 @@ class DashboardRepository {
     );
   }
 
+  Future<String?> resolveStoreId() async {
+    final userId = _client.auth.currentUser?.id;
+    final metaStoreId = _client.auth.currentUser?.userMetadata?['store_id']
+        ?.toString();
+
+    final stores = await _select(
+      table: 'stores',
+      columns: '*',
+      limit: 1,
+      userId: userId,
+      storeId: metaStoreId,
+    );
+
+    final storeId = stores.isNotEmpty
+        ? (stores.first['id'] ?? stores.first['store_id'])?.toString()
+        : metaStoreId;
+
+    if (storeId == null || storeId.trim().isEmpty) {
+      return null;
+    }
+
+    return storeId;
+  }
+
+  Future<List<Map<String, dynamic>>> fetchCustomers() async {
+    final userId = _client.auth.currentUser?.id;
+    final storeId = await resolveStoreId();
+
+    if (storeId == null) {
+      return <Map<String, dynamic>>[];
+    }
+
+    return _select(
+      table: 'customers',
+      columns: '*',
+      userId: userId,
+      storeId: storeId,
+    );
+  }
+
   Future<List<Map<String, dynamic>>> _select({
     required String table,
     required String columns,

@@ -5,6 +5,7 @@ enum MoreActionsModule {
   posBilling,
   orders,
   products,
+  customers,
   analytics,
   aiUpload,
   catalogueLink,

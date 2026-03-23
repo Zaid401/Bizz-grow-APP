@@ -10,6 +10,7 @@ import 'vendors.dart';
 import 'customer.dart';
 import 'delivery.dart';
 import 'store_settings.dart';
+import 'AI_upload.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, this.initialTab = ShellTab.dashboard});
@@ -70,6 +71,7 @@ class _HomeShellState extends State<HomeShell> {
             CustomerScreen(),
             DeliveryScreen(),
             StoreSettingsScreen(),
+            AiUploadScreen(),
           ],
         ),
       ),

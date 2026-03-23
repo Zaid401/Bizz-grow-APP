@@ -17,6 +17,7 @@ class DashboardDrawer extends StatelessWidget {
     this.onOpenVendors,
     this.onOpenDelivery,
     this.onOpenStoreSettings,
+    this.onOpenAiUpload,
     this.activeDashboard = false,
     this.activePosBilling = false,
     this.activeOrders = false,
@@ -26,6 +27,7 @@ class DashboardDrawer extends StatelessWidget {
     this.activeVendors = false,
     this.activeDelivery = false,
     this.activeStoreSettings = false,
+    this.activeAiUpload = false,
   });
 
   final VoidCallback onClose;
@@ -39,6 +41,7 @@ class DashboardDrawer extends StatelessWidget {
   final VoidCallback? onOpenVendors;
   final VoidCallback? onOpenDelivery;
   final VoidCallback? onOpenStoreSettings;
+  final VoidCallback? onOpenAiUpload;
   final bool activeDashboard;
   final bool activePosBilling;
   final bool activeOrders;
@@ -48,6 +51,7 @@ class DashboardDrawer extends StatelessWidget {
   final bool activeVendors;
   final bool activeDelivery;
   final bool activeStoreSettings;
+  final bool activeAiUpload;
 
   // ── Palette ────────────────────────────────────────────────────────────────
   static const Color _bg = Color(0xFFF2EEF9);
@@ -159,7 +163,8 @@ class DashboardDrawer extends StatelessWidget {
                       icon: Icons.auto_awesome_rounded,
                       label: 'AI Upload',
                       badge: 'NEW',
-                      onTap: onClose,
+                      active: activeAiUpload,
+                      onTap: onOpenAiUpload ?? onClose,
                     ),
                     _menuItem(
                       icon: Icons.chat_bubble_outline_rounded,

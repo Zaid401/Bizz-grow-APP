@@ -10,6 +10,7 @@ enum ShellTab {
   customers,
   delivery,
   storeSettings,
+  aiUpload,
 }
 
 extension ShellTabIndex on ShellTab {
@@ -23,6 +24,7 @@ extension ShellTabIndex on ShellTab {
     ShellTab.customers => 6,
     ShellTab.delivery => 7,
     ShellTab.storeSettings => 8,
+    ShellTab.aiUpload => 9,
   };
 }
 
