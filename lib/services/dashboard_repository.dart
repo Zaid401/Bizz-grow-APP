@@ -151,7 +151,9 @@ class DashboardRepository {
                   row['final_amount'],
             ),
             status: _normalizeStatus(
-              row['payment_status'] as String? ?? row['status'] as String?,
+              row['order_status'] as String? ??
+                  row['status'] as String? ??
+                  row['payment_status'] as String?,
             ),
             createdAt:
                 DateTime.tryParse(row['created_at'] as String? ?? '') ?? now,
@@ -553,7 +555,10 @@ class DashboardRepository {
   }
 
   String _normalizeStatus(String? status) {
-    final normalized = (status ?? 'pending').toLowerCase();
+    final normalized = (status ?? 'pending').toLowerCase().trim();
+    if (normalized.contains('deliver')) return 'delivered';
+    if (normalized.contains('confirm')) return 'confirmed';
+    if (normalized.contains('pending')) return 'pending';
     if (normalized.contains('success') ||
         normalized.contains('paid') ||
         normalized.contains('complete')) {
@@ -561,7 +566,7 @@ class DashboardRepository {
     }
     if (normalized.contains('cancel')) return 'cancelled';
     if (normalized.contains('fail')) return 'failed';
-    return 'pending';
+    return normalized.isEmpty ? 'pending' : normalized;
   }
 
   String _stringValue(

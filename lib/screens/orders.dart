@@ -12,6 +12,7 @@ import 'store_settings.dart';
 import 'notifications.dart';
 import '../services/orders_repository.dart';
 import '../services/dashboard_repository.dart';
+import '../loading/skeleton_order.dart';
 import '../widgets/more_actions_sheet.dart';
 import '../widgets/order_detail_screen.dart';
 import '../widgets/top_header.dart';
@@ -364,7 +365,7 @@ class _OrdersScreenState extends State<OrdersScreen>
                     if (_error != null)
                       _buildErrorBanner()
                     else if (_loading)
-                      _buildLoadingState()
+                      const SkeletonOrder()
                     else if (filtered.isEmpty)
                       _buildEmptyState()
                     else

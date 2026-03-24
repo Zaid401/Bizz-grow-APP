@@ -6,6 +6,7 @@ import 'slider.dart';
 import '../services/vendors_repository.dart';
 import '../services/products_repository.dart';
 import '../services/dashboard_repository.dart';
+import '../loading/skeleton_vendors.dart';
 import '../widgets/top_header.dart';
 import '../widgets/more_actions_sheet.dart';
 import '../widgets/shell_nav.dart';
@@ -596,7 +597,7 @@ class _VendorsScreenState extends State<VendorsScreen>
                       if (_error != null)
                         _buildErrorBanner()
                       else if (_loading)
-                        _buildLoadingState()
+                        const SkeletonVendors(tab: SkeletonVendorsTab.vendors)
                       else if (_filteredVendors.isEmpty)
                         _buildEmptyState()
                       else
@@ -622,7 +623,7 @@ class _VendorsScreenState extends State<VendorsScreen>
                       if (_error != null)
                         _buildErrorBanner()
                       else if (_loading)
-                        _buildLoadingState()
+                        const SkeletonVendors(tab: SkeletonVendorsTab.purchases)
                       else if (_filteredPurchases.isEmpty)
                         _buildEmptyPurchases()
                       else
@@ -644,7 +645,7 @@ class _VendorsScreenState extends State<VendorsScreen>
                       if (_error != null)
                         _buildErrorBanner()
                       else if (_loading)
-                        _buildLoadingState()
+                        const SkeletonVendors(tab: SkeletonVendorsTab.payments)
                       else if (_pendingPurchases.isEmpty)
                         _buildEmptyPayments()
                       else

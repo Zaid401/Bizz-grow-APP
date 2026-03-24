@@ -12,6 +12,7 @@ import 'dashboard.dart';
 import 'notifications.dart';
 import '../services/dashboard_repository.dart';
 import '../services/pos_repository.dart';
+import '../services/pos_due_payments.dart';
 import '../widgets/more_actions_sheet.dart';
 import '../widgets/top_header.dart';
 import '../widgets/shell_nav.dart';
@@ -238,7 +239,15 @@ class _PosBillingScreenState extends State<PosBillingScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    const _TitleBar(),
+                    _TitleBar(
+                      onOpenDuePayments: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const PosDuePaymentsScreen(),
+                          ),
+                        );
+                      },
+                    ),
                     const SizedBox(height: 14),
                     _SearchField(
                       controller: _search,
@@ -346,7 +355,9 @@ class _PosBillingScreenState extends State<PosBillingScreen> {
 }
 
 class _TitleBar extends StatelessWidget {
-  const _TitleBar();
+  const _TitleBar({required this.onOpenDuePayments});
+
+  final VoidCallback onOpenDuePayments;
 
   @override
   Widget build(BuildContext context) {
@@ -376,7 +387,7 @@ class _TitleBar extends StatelessWidget {
           ),
         ),
         OutlinedButton.icon(
-          onPressed: () {},
+          onPressed: onOpenDuePayments,
           style: OutlinedButton.styleFrom(
             side: const BorderSide(color: Color(0xFF4D0E7F), width: 1.3),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -384,9 +395,9 @@ class _TitleBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
           ),
-          icon: const Icon(Icons.history, color: Color(0xFF4D0E7F)),
+          icon: const Icon(Icons.payments_outlined, color: Color(0xFF4D0E7F)),
           label: const Text(
-            'Order History',
+            'Due Payments',
             style: TextStyle(
               color: Color(0xFF4D0E7F),
               fontWeight: FontWeight.w700,

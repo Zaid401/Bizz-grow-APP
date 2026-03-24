@@ -13,11 +13,11 @@ import '../services/ai_upload_service.dart';
 import '../services/dashboard_repository.dart';
 import '../widgets/more_actions_sheet.dart';
 import '../widgets/shell_nav.dart';
+import 'notifications.dart';
 import 'slider.dart';
 
 final String _supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
 
-// ── Palette ────────────────────────────────────────────────────────────────────
 class _C {
   static const bg = Color(0xFFF2EEF9);
   static const surface = Color(0xFFFFFFFF);
@@ -40,7 +40,6 @@ class _C {
   static const redSoft = Color(0xFFFEE2E2);
 }
 
-// ── AI Analysis Steps ──────────────────────────────────────────────────────────
 class _AnalysisStep {
   const _AnalysisStep(this.label, this.icon, this.color);
   final String label;
@@ -49,18 +48,25 @@ class _AnalysisStep {
 }
 
 const _analysisSteps = [
-  _AnalysisStep('Uploading image…', Icons.cloud_upload_rounded, _C.blue),
-  _AnalysisStep('Scanning product…', Icons.document_scanner_rounded, _C.purple),
-  _AnalysisStep('Extracting details…', Icons.auto_awesome_rounded, _C.amber),
+  _AnalysisStep('Uploading image...', Icons.cloud_upload_rounded, _C.blue),
   _AnalysisStep(
-    'Enhancing image…',
+    'Scanning product...',
+    Icons.document_scanner_rounded,
+    _C.purple,
+  ),
+  _AnalysisStep('Extracting details...', Icons.auto_awesome_rounded, _C.amber),
+  _AnalysisStep(
+    'Enhancing image...',
     Icons.auto_fix_high_rounded,
     _C.accentLight,
   ),
-  _AnalysisStep('Filling in product info…', Icons.edit_note_rounded, _C.green),
+  _AnalysisStep(
+    'Filling in product info...',
+    Icons.edit_note_rounded,
+    _C.green,
+  ),
 ];
 
-// ══════════════════════════════════════════════════════════════════════════════
 class AiUploadScreen extends StatefulWidget {
   const AiUploadScreen({super.key});
   @override
@@ -85,20 +91,18 @@ class _AiUploadScreenState extends State<AiUploadScreen>
   bool _analyzing = false;
   bool _saving = false;
   File? _selectedImage;
+  int _unreadNotifications = 0;
 
-  // ── Animation controllers ──────────────────────────────────────────────────
   late AnimationController _pulseController;
   late AnimationController _rotateController;
   late AnimationController _stepController;
   late AnimationController _shimmerController;
-  late AnimationController _successController;
   AnimationController? _pageController;
 
   late Animation<double> _pulseAnim;
   late Animation<double> _rotateAnim;
   late Animation<double> _stepAnim;
   late Animation<double> _shimmerAnim;
-  late Animation<double> _successAnim;
   Animation<double> _pageFadeAnim = const AlwaysStoppedAnimation(1);
   Animation<Offset> _pageSlideAnim = const AlwaysStoppedAnimation(Offset.zero);
 
@@ -108,7 +112,6 @@ class _AiUploadScreenState extends State<AiUploadScreen>
   @override
   void initState() {
     super.initState();
-
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
@@ -140,15 +143,6 @@ class _AiUploadScreenState extends State<AiUploadScreen>
       CurvedAnimation(parent: _shimmerController, curve: Curves.linear),
     );
 
-    _successController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
-    _successAnim = CurvedAnimation(
-      parent: _successController,
-      curve: Curves.elasticOut,
-    );
-
     _pageController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
@@ -161,7 +155,6 @@ class _AiUploadScreenState extends State<AiUploadScreen>
       begin: const Offset(0, 0.04),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _pageController!, curve: Curves.easeOut));
-
     _load();
   }
 
@@ -171,7 +164,6 @@ class _AiUploadScreenState extends State<AiUploadScreen>
     _rotateController.dispose();
     _stepController.dispose();
     _shimmerController.dispose();
-    _successController.dispose();
     _pageController?.dispose();
     _nameCtrl.dispose();
     _priceCtrl.dispose();
@@ -180,7 +172,6 @@ class _AiUploadScreenState extends State<AiUploadScreen>
     super.dispose();
   }
 
-  // ── Step ticker ────────────────────────────────────────────────────────────
   Future<void> _tickSteps() async {
     for (int i = 0; i < _analysisSteps.length; i++) {
       if (!mounted) return;
@@ -190,16 +181,56 @@ class _AiUploadScreenState extends State<AiUploadScreen>
     }
   }
 
-  // ── Data ───────────────────────────────────────────────────────────────────
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
       final dash = await _dashboardRepository.fetch();
       if (!mounted) return;
       setState(() => _storeInfo = dash.storeInfo);
+      await _loadUnreadNotifications();
     } catch (_) {
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadUnreadNotifications() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      final userId = user?.id;
+      final storeId = user?.userMetadata?['store_id']?.toString();
+      List<Map<String, dynamic>> rows = const [];
+
+      if (storeId != null && storeId.trim().isNotEmpty && userId != null) {
+        dynamic query = _supabase.from('notifications').select('id');
+        query = query.eq('is_read', false);
+        query = query.or('store_id.eq.$storeId,user_id.eq.$userId');
+        final result = await query;
+        rows = (result as List)
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      if (rows.isEmpty && storeId != null && storeId.trim().isNotEmpty) {
+        dynamic query = _supabase.from('notifications').select('id');
+        query = query.eq('is_read', false).eq('store_id', storeId);
+        final result = await query;
+        rows = (result as List)
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      if (rows.isEmpty && userId != null) {
+        dynamic query = _supabase.from('notifications').select('id');
+        query = query.eq('is_read', false).eq('user_id', userId);
+        final result = await query;
+        rows = (result as List)
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      if (!mounted) return;
+      setState(() => _unreadNotifications = rows.length);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _unreadNotifications = 0);
     }
   }
 
@@ -230,17 +261,13 @@ class _AiUploadScreenState extends State<AiUploadScreen>
       _analyzing = true;
       _currentStep = 0;
     });
-
-    // Start step ticker in parallel
     final stepFuture = _tickSteps();
-
     try {
       final bytes = await _selectedImage!.readAsBytes();
       final base64Image = base64Encode(bytes);
       final mimeType = _guessMimeType(_selectedImage!.path);
       final dataUrl = 'data:$mimeType;base64,$base64Image';
       final data = await _aiUploadService.analyzeProduct(dataUrl);
-
       _nameCtrl.text = _firstVal(data, [
         'name',
         'productName',
@@ -254,7 +281,6 @@ class _AiUploadScreenState extends State<AiUploadScreen>
         'categoryName',
         'category_name',
       ]);
-
       await stepFuture;
       final hasData = [
         _nameCtrl,
@@ -312,6 +338,8 @@ class _AiUploadScreenState extends State<AiUploadScreen>
       }
       if (!mounted) return;
       await _showSuccessDialog();
+      if (!mounted) return;
+      _resetAfterAdd();
     } catch (e) {
       _showSnack('Upload failed: $e');
     } finally {
@@ -328,7 +356,6 @@ class _AiUploadScreenState extends State<AiUploadScreen>
     _catCtrl.clear();
   });
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
   Map<String, String> get _restHeaders => {
     'apikey': _supabaseAnonKey,
     'Authorization': 'Bearer $_supabaseAnonKey',
@@ -415,12 +442,11 @@ class _AiUploadScreenState extends State<AiUploadScreen>
     );
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: Colors.transparent,
+      backgroundColor: _C.bg,
       drawer: DashboardDrawer(
         store: _storeInfo,
         onClose: () => _scaffoldKey.currentState?.closeDrawer(),
@@ -481,7 +507,7 @@ class _AiUploadScreenState extends State<AiUploadScreen>
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF2D1B5A), Color(0xFF4B2EA6), Color(0xFF6D28D9)],
+            colors: [Color(0xFFF7F4FF), Color(0xFFEEE7FF), Color(0xFFE0D7FF)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -506,8 +532,11 @@ class _AiUploadScreenState extends State<AiUploadScreen>
                           const SizedBox(height: 22),
                           _buildUploadCard(),
                           const SizedBox(height: 18),
-                          if (_selectedImage != null) _buildPreviewCard(),
-                          if (_selectedImage != null) ...[
+                          // ── DYNAMIC ANIMATION CARD appears here while analyzing ──
+                          if (_analyzing) _buildAnalyzingCard(),
+                          // ── Preview + form shown only after analysis finishes ──
+                          if (!_analyzing && _selectedImage != null) ...[
+                            _buildPreviewCard(),
                             const SizedBox(height: 18),
                             _buildDetailsForm(),
                             const SizedBox(height: 16),
@@ -527,97 +556,155 @@ class _AiUploadScreenState extends State<AiUploadScreen>
     );
   }
 
-  // ── AppBar ─────────────────────────────────────────────────────────────────
-  PreferredSizeWidget _buildAppBar() => AppBar(
-    backgroundColor: Colors.transparent,
-    elevation: 0,
-    surfaceTintColor: Colors.transparent,
-    leading: GestureDetector(
-      onTap: () => _scaffoldKey.currentState?.openDrawer(),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(11),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
-          ),
-          child: const Icon(Icons.menu_rounded, color: Colors.white, size: 20),
+  PreferredSizeWidget _buildAppBar() {
+    final hasLogo =
+        _storeInfo?.logoUrl != null && _storeInfo!.logoUrl!.trim().isNotEmpty;
+    return AppBar(
+      backgroundColor: _C.bg,
+      elevation: 0,
+      surfaceTintColor: _C.bg,
+      centerTitle: true,
+      titleSpacing: 0,
+      leading: IconButton(
+        onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        icon: const Icon(Icons.menu_rounded, color: Color(0xFF4A3A59)),
+      ),
+      title: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: _C.divider),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 26,
+              height: 26,
+              decoration: const BoxDecoration(
+                color: _C.accent,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.auto_awesome_rounded,
+                color: Colors.white,
+                size: 14,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'AI Upload',
+              style: TextStyle(
+                color: _C.textPrimary,
+                fontWeight: FontWeight.w700,
+                fontSize: 15.5,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ],
         ),
       ),
-    ),
-    title: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(7),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [_C.accentLight, _C.accent],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(
-            Icons.auto_awesome_rounded,
-            color: Colors.white,
-            size: 14,
+      actions: [
+        IconButton(
+          onPressed: () {
+            Navigator.of(context)
+                .push(
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationsScreen(),
+                  ),
+                )
+                .then((_) => _loadUnreadNotifications());
+          },
+          icon: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              const Icon(
+                Icons.notifications_none_rounded,
+                color: Color(0xFF4A3A59),
+              ),
+              if (_unreadNotifications > 0)
+                Positioned(
+                  right: -4,
+                  top: -4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16),
+                    child: Text(
+                      _unreadNotifications > 9
+                          ? '9+'
+                          : _unreadNotifications.toString(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
-        const SizedBox(width: 8),
-        const Text(
-          'AI Upload',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-            fontSize: 17,
-            letterSpacing: -0.2,
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: CircleAvatar(
+            radius: 18,
+            backgroundColor: hasLogo ? Colors.transparent : _C.accent,
+            backgroundImage: hasLogo
+                ? NetworkImage(_storeInfo!.logoUrl!)
+                : null,
+            child: hasLogo
+                ? null
+                : Text(
+                    _initials(_storeInfo?.name ?? 'Store'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
           ),
         ),
       ],
-    ),
-    centerTitle: true,
-    actions: [
-      GestureDetector(
-        onTap: () => _showSnack('AI Upload help coming soon.'),
-        child: Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(11),
-              border: Border.all(color: Colors.white.withOpacity(0.2)),
-            ),
-            child: const Icon(
-              Icons.help_outline_rounded,
-              color: Colors.white,
-              size: 18,
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
+    );
+  }
 
-  // ── Hero ───────────────────────────────────────────────────────────────────
+  String _initials(String value) {
+    final parts = value.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
+    final letters = parts.map((p) => p[0]).take(2).join();
+    return letters.isEmpty ? 'ST' : letters.toUpperCase();
+  }
+
   Widget _buildHeroBadge() => Container(
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
     decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.15),
+      color: _C.accentSoft,
       borderRadius: BorderRadius.circular(28),
-      border: Border.all(color: Colors.white.withOpacity(0.2)),
+      border: Border.all(color: _C.accentMid),
     ),
     child: const Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 14),
+        Icon(Icons.auto_awesome_rounded, color: _C.accent, size: 14),
         SizedBox(width: 6),
         Text(
           'AI-Powered Product Upload',
           style: TextStyle(
-            color: Colors.white,
+            color: _C.accent,
             fontSize: 11.5,
             fontWeight: FontWeight.w700,
           ),
@@ -634,182 +721,176 @@ class _AiUploadScreenState extends State<AiUploadScreen>
         style: TextStyle(
           fontSize: 24,
           fontWeight: FontWeight.w800,
-          color: Colors.white,
+          color: _C.textPrimary,
           letterSpacing: -0.4,
         ),
       ),
       SizedBox(height: 10),
       Text(
-        'Snap a photo · AI extracts details · Done!',
+        'Snap a photo \u00b7 AI extracts details \u00b7 Done!',
         textAlign: TextAlign.center,
-        style: TextStyle(color: Colors.white70, fontSize: 13.5, height: 1.5),
+        style: TextStyle(color: _C.textSecondary, fontSize: 13.5, height: 1.5),
       ),
     ],
   );
 
-  // ── Upload Card ────────────────────────────────────────────────────────────
-  Widget _buildUploadCard() {
-    return _GlassCard(
-      padding: const EdgeInsets.all(22),
-      child: Column(
-        children: [
-          ScaleTransition(
-            scale: _analyzing ? _pulseAnim : const AlwaysStoppedAnimation(1.0),
-            child: Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF7C3AED), Color(0xFF4C1D95)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+  Widget _buildUploadCard() => _GlassCard(
+    padding: const EdgeInsets.all(22),
+    child: Column(
+      children: [
+        ScaleTransition(
+          scale: _analyzing ? _pulseAnim : const AlwaysStoppedAnimation(1.0),
+          child: Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF7C3AED), Color(0xFF4C1D95)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: _C.accent.withOpacity(0.3),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
                 ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: _C.accent.withOpacity(0.3),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.add_photo_alternate_rounded,
-                color: Colors.white,
-                size: 30,
-              ),
+              ],
             ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Upload Product Images',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
+            child: const Icon(
+              Icons.add_photo_alternate_rounded,
               color: Colors.white,
+              size: 30,
             ),
           ),
-          const SizedBox(height: 6),
-          const Text(
-            'Snap or upload a product photo.\nOur AI will extract all the details automatically.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12.5,
-              height: 1.5,
-              color: Colors.white70,
-            ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Upload Product Images',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: _C.textPrimary,
           ),
-          const SizedBox(height: 20),
-
-          _PressableScale(
-            onTap: _analyzing ? null : () => _pickImage(ImageSource.camera),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF7C3AED), Color(0xFF4C1D95)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Snap or upload a product photo.\nOur AI will extract all the details automatically.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12.5,
+            height: 1.5,
+            color: _C.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 20),
+        _PressableScale(
+          onTap: _analyzing ? null : () => _pickImage(ImageSource.camera),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF7C3AED), Color(0xFF4C1D95)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: _C.accent.withOpacity(0.3),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
                 ),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: _C.accent.withOpacity(0.3),
-                    blurRadius: 14,
-                    offset: const Offset(0, 6),
+              ],
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.camera_alt_rounded, color: Colors.white, size: 18),
+                SizedBox(width: 8),
+                Text(
+                  'Take Photo',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    letterSpacing: 0.2,
                   ),
-                ],
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.camera_alt_rounded, color: Colors.white, size: 18),
-                  SizedBox(width: 8),
-                  Text(
-                    'Take Photo',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 10),
-
-          _PressableScale(
-            onTap: _analyzing ? null : () => _pickImage(ImageSource.gallery),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(0.25)),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.upload_rounded, color: Colors.white, size: 18),
-                  SizedBox(width: 8),
-                  Text(
-                    'Upload from Gallery',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
+        ),
+        const SizedBox(height: 10),
+        _PressableScale(
+          onTap: _analyzing ? null : () => _pickImage(ImageSource.gallery),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 13),
+            decoration: BoxDecoration(
+              color: _C.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _C.divider),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.upload_rounded, color: _C.textSecondary, size: 18),
+                SizedBox(width: 8),
+                Text(
+                  'Upload from Gallery',
+                  style: TextStyle(
+                    color: _C.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 14,
+          runSpacing: 8,
+          children: const [
+            _FeatureChip(icon: Icons.image_rounded, text: 'JPG, PNG, HEIC'),
+            _FeatureChip(icon: Icons.cloud_upload_rounded, text: 'Max 10MB'),
+            _FeatureChip(icon: Icons.photo_library_rounded, text: 'Up to 20'),
+          ],
+        ),
+      ],
+    ),
+  );
 
-          const SizedBox(height: 16),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 14,
-            runSpacing: 8,
-            children: const [
-              _FeatureChip(icon: Icons.image_rounded, text: 'JPG, PNG, HEIC'),
-              _FeatureChip(icon: Icons.cloud_upload_rounded, text: 'Max 10MB'),
-              _FeatureChip(icon: Icons.photo_library_rounded, text: 'Up to 20'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Dynamic Analyzing Overlay ──────────────────────────────────────────────
-  Widget _buildAnalyzingOverlay() {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DYNAMIC ANALYZING CARD — replaces plain "Analyzing product..." text
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildAnalyzingCard() {
     final step =
         _analysisSteps[_currentStep.clamp(0, _analysisSteps.length - 1)];
     final progress = (_currentStep + 1) / _analysisSteps.length;
-
     return _GlassCard(
       padding: const EdgeInsets.all(22),
       child: Column(
         children: [
-          // Rotating AI orb
+          // 1) Rotating sweep-gradient ring with step icon inside
           AnimatedBuilder(
             animation: _rotateAnim,
-            builder: (_, child) {
-              return Transform.rotate(angle: _rotateAnim.value, child: child);
-            },
+            builder: (_, child) =>
+                Transform.rotate(angle: _rotateAnim.value, child: child),
             child: Container(
-              width: 72,
-              height: 72,
+              width: 80,
+              height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: SweepGradient(
                   colors: [
                     _C.accentLight.withOpacity(0.0),
-                    _C.accentLight.withOpacity(0.6),
+                    _C.accentLight.withOpacity(0.7),
                     _C.accent,
                     _C.accentLight.withOpacity(0.0),
                   ],
@@ -817,36 +898,50 @@ class _AiUploadScreenState extends State<AiUploadScreen>
               ),
               child: Center(
                 child: Container(
-                  width: 56,
-                  height: 56,
+                  width: 62,
+                  height: 62,
                   decoration: BoxDecoration(
                     color: _C.surface,
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
                         color: _C.accent.withOpacity(0.15),
-                        blurRadius: 10,
+                        blurRadius: 12,
                       ),
                     ],
                   ),
+                  // 2) Step icon switches via AnimatedSwitcher
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 400),
+                    transitionBuilder: (child, anim) => FadeTransition(
+                      opacity: anim,
+                      child: ScaleTransition(scale: anim, child: child),
+                    ),
                     child: Icon(
                       step.icon,
                       key: ValueKey(_currentStep),
                       color: step.color,
-                      size: 26,
+                      size: 28,
                     ),
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 18),
-
-          // Step label with fade transition
+          const SizedBox(height: 20),
+          // 3) Step label switches via AnimatedSwitcher with slide
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 350),
+            transitionBuilder: (child, anim) => FadeTransition(
+              opacity: anim,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.15),
+                  end: Offset.zero,
+                ).animate(anim),
+                child: child,
+              ),
+            ),
             child: Text(
               step.label,
               key: ValueKey(_currentStep),
@@ -854,38 +949,34 @@ class _AiUploadScreenState extends State<AiUploadScreen>
               style: const TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
-                color: Colors.white,
+                color: _C.textPrimary,
                 letterSpacing: -0.2,
               ),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
             'Step ${_currentStep + 1} of ${_analysisSteps.length}',
-            style: const TextStyle(fontSize: 12, color: Colors.white70),
+            style: const TextStyle(fontSize: 12, color: _C.textSecondary),
           ),
-
           const SizedBox(height: 20),
-
-          // Animated progress bar
+          // 4) Smooth TweenAnimationBuilder progress bar
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: progress),
+              tween: Tween(begin: 0.0, end: progress),
               duration: const Duration(milliseconds: 600),
               curve: Curves.easeOut,
               builder: (_, value, __) => LinearProgressIndicator(
                 value: value,
                 minHeight: 8,
-                backgroundColor: Colors.white12,
+                backgroundColor: _C.accentSoft,
                 valueColor: AlwaysStoppedAnimation<Color>(_C.accentLight),
               ),
             ),
           ),
-
           const SizedBox(height: 18),
-
-          // Step dots
+          // 5) Animated step dot indicators
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(_analysisSteps.length, (i) {
@@ -894,7 +985,7 @@ class _AiUploadScreenState extends State<AiUploadScreen>
               return AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 margin: const EdgeInsets.symmetric(horizontal: 4),
-                width: active ? 22 : 8,
+                width: active ? 24 : 8,
                 height: 8,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(4),
@@ -907,35 +998,36 @@ class _AiUploadScreenState extends State<AiUploadScreen>
               );
             }),
           ),
-
-          const SizedBox(height: 18),
-
-          // Shimmer placeholder for incoming data
-          _buildShimmerPlaceholder(),
-
+          const SizedBox(height: 20),
+          // 6) Shimmer rows
+          _buildShimmerRows(),
           const SizedBox(height: 14),
           Text(
-            'This usually takes a few seconds…',
-            style: TextStyle(fontSize: 11.5, color: Colors.white70),
+            'This usually takes a few seconds...',
+            style: TextStyle(
+              fontSize: 11.5,
+              color: _C.textSecondary.withOpacity(0.7),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildShimmerPlaceholder() {
+  Widget _buildShimmerRows() {
+    final widths = [0.85, 0.6, 0.72];
     return AnimatedBuilder(
       animation: _shimmerAnim,
       builder: (_, __) {
         return Column(
-          children: List.generate(3, (index) {
-            final widths = [0.8, 0.6, 0.7];
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              height: 12,
+          children: List.generate(
+            3,
+            (index) => Container(
+              margin: const EdgeInsets.only(bottom: 9),
+              height: 13,
               width: double.infinity,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(7),
                 gradient: LinearGradient(
                   begin: Alignment(_shimmerAnim.value - 1, 0),
                   end: Alignment(_shimmerAnim.value + 1, 0),
@@ -946,14 +1038,13 @@ class _AiUploadScreenState extends State<AiUploadScreen>
                 widthFactor: widths[index],
                 alignment: Alignment.centerLeft,
               ),
-            );
-          }),
+            ),
+          ),
         );
       },
     );
   }
 
-  // ── Preview Card ───────────────────────────────────────────────────────────
   Widget _buildPreviewCard() {
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 400),
@@ -980,21 +1071,18 @@ class _AiUploadScreenState extends State<AiUploadScreen>
                     ),
                     if (_analyzing)
                       Positioned.fill(
-                        child: Container(
-                          color: Colors.black.withOpacity(0.35),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: const [
-                              CircularProgressIndicator(color: Colors.white),
-                              SizedBox(height: 10),
-                              Text(
-                                'Analyzing product...',
-                                style: TextStyle(
+                        child: ClipRRect(
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+                            child: Container(
+                              color: Colors.black.withOpacity(0.3),
+                              child: const Center(
+                                child: CircularProgressIndicator(
                                   color: Colors.white,
-                                  fontWeight: FontWeight.w700,
+                                  strokeWidth: 2.5,
                                 ),
                               ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
@@ -1071,52 +1159,45 @@ class _AiUploadScreenState extends State<AiUploadScreen>
     );
   }
 
-  // ── Details Form ───────────────────────────────────────────────────────────
-  Widget _buildDetailsForm() {
-    return _GlassCard(
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionHeader(Icons.edit_note_rounded, 'Product Details'),
-          const SizedBox(height: 16),
-          _formField(
-            'Product Name',
-            _nameCtrl,
-            icon: Icons.inventory_2_rounded,
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _formField(
-                  'Price (₹)',
-                  _priceCtrl,
-                  keyboard: TextInputType.number,
-                  icon: Icons.currency_rupee_rounded,
-                ),
+  Widget _buildDetailsForm() => _GlassCard(
+    padding: const EdgeInsets.all(18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader(Icons.edit_note_rounded, 'Product Details'),
+        const SizedBox(height: 16),
+        _formField('Product Name', _nameCtrl, icon: Icons.inventory_2_rounded),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _formField(
+                'Price (\u20b9)',
+                _priceCtrl,
+                keyboard: TextInputType.number,
+                icon: Icons.currency_rupee_rounded,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _formField(
-                  'Category',
-                  _catCtrl,
-                  icon: Icons.label_rounded,
-                ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _formField(
+                'Category',
+                _catCtrl,
+                icon: Icons.label_rounded,
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _formField(
-            'Description',
-            _descCtrl,
-            maxLines: 3,
-            icon: Icons.notes_rounded,
-          ),
-        ],
-      ),
-    );
-  }
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _formField(
+          'Description',
+          _descCtrl,
+          maxLines: 3,
+          icon: Icons.notes_rounded,
+        ),
+      ],
+    ),
+  );
 
   Widget _formField(
     String label,
@@ -1159,163 +1240,148 @@ class _AiUploadScreenState extends State<AiUploadScreen>
     );
   }
 
-  // ── Add Button ─────────────────────────────────────────────────────────────
-  Widget _buildAddButton() {
-    return _PressableScale(
-      onTap: _analyzing || _saving ? null : _addProductToStore,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: double.infinity,
-        height: 54,
-        decoration: BoxDecoration(
-          gradient: _saving || _analyzing
-              ? null
-              : const LinearGradient(
-                  colors: [Color(0xFF7C3AED), Color(0xFF4C1D95)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+  Widget _buildAddButton() => _PressableScale(
+    onTap: _analyzing || _saving ? null : _addProductToStore,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      width: double.infinity,
+      height: 54,
+      decoration: BoxDecoration(
+        gradient: _saving || _analyzing
+            ? null
+            : const LinearGradient(
+                colors: [Color(0xFF7C3AED), Color(0xFF4C1D95)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        color: _saving || _analyzing ? _C.divider : null,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: _saving || _analyzing
+            ? []
+            : [
+                BoxShadow(
+                  color: _C.accent.withOpacity(0.35),
+                  blurRadius: 16,
+                  offset: const Offset(0, 7),
                 ),
-          color: _saving || _analyzing ? _C.divider : null,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: _saving || _analyzing
-              ? []
-              : [
-                  BoxShadow(
-                    color: _C.accent.withOpacity(0.35),
-                    blurRadius: 16,
-                    offset: const Offset(0, 7),
+              ],
+      ),
+      child: Center(
+        child: _saving
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: _C.accentLight,
+                ),
+              )
+            : const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.add_box_rounded, color: Colors.white, size: 18),
+                  SizedBox(width: 10),
+                  Text(
+                    'Add Product to Store',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
+                    ),
                   ),
                 ],
+              ),
+      ),
+    ),
+  );
+
+  Widget _sectionHeader(IconData icon, String title) => Row(
+    children: [
+      Container(
+        padding: const EdgeInsets.all(7),
+        decoration: BoxDecoration(
+          color: _C.accentSoft,
+          borderRadius: BorderRadius.circular(10),
         ),
-        child: Center(
-          child: _saving
-              ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: _C.accentLight,
-                  ),
-                )
-              : const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.add_box_rounded, color: Colors.white, size: 18),
-                    SizedBox(width: 10),
-                    Text(
-                      'Add Product to Store',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ],
-                ),
+        child: Icon(icon, color: _C.accentLight, size: 16),
+      ),
+      const SizedBox(width: 10),
+      Text(
+        title,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+          color: _C.textPrimary,
+          letterSpacing: -0.2,
         ),
       ),
-    );
-  }
-
-  // ── Section header ─────────────────────────────────────────────────────────
-  Widget _buildSectionHeader(IconData icon, String title) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(7),
-          decoration: BoxDecoration(
-            color: _C.accentSoft,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: _C.accentLight, size: 16),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-            color: _C.textPrimary,
-            letterSpacing: -0.2,
+      const SizedBox(width: 8),
+      Expanded(
+        child: Container(
+          height: 1,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(colors: [_C.divider, Colors.transparent]),
           ),
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Container(
-            height: 1,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [_C.divider, Colors.transparent],
-              ),
+      ),
+    ],
+  );
+
+  Widget _buildFeatureBadges() => Wrap(
+    alignment: WrapAlignment.center,
+    spacing: 10,
+    runSpacing: 10,
+    children: const [
+      _FeatureBadge(label: 'Detects 1000+ products', icon: Icons.flash_on),
+      _FeatureBadge(label: 'Auto-categorization', icon: Icons.auto_awesome),
+      _FeatureBadge(label: 'Price extraction', icon: Icons.price_check),
+      _FeatureBadge(label: 'Clean backgrounds', icon: Icons.auto_fix_high),
+    ],
+  );
+
+  Widget _buildQuickStats() => LayoutBuilder(
+    builder: (_, constraints) {
+      final w = (constraints.maxWidth - 24) / 3;
+      return Row(
+        children: [
+          SizedBox(
+            width: w,
+            child: const _StatTile(
+              title: '<5 sec',
+              subtitle: 'Instant\nDetection',
+              icon: Icons.flash_on_rounded,
+              tint: _C.amber,
+              soft: _C.amberSoft,
             ),
           ),
-        ),
-      ],
-    );
-  }
-
-  // ── Feature Badges ─────────────────────────────────────────────────────────
-  Widget _buildFeatureBadges() {
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 10,
-      runSpacing: 10,
-      children: const [
-        _FeatureBadge(label: 'Detects 1000+ products', icon: Icons.flash_on),
-        _FeatureBadge(label: 'Auto-categorization', icon: Icons.auto_awesome),
-        _FeatureBadge(label: 'Price extraction', icon: Icons.price_check),
-        _FeatureBadge(label: 'Clean backgrounds', icon: Icons.auto_fix_high),
-      ],
-    );
-  }
-
-  // ── Quick Stats ────────────────────────────────────────────────────────────
-  Widget _buildQuickStats() {
-    return LayoutBuilder(
-      builder: (_, constraints) {
-        final w = (constraints.maxWidth - 24) / 3;
-        return Row(
-          children: [
-            SizedBox(
-              width: w,
-              child: const _StatTile(
-                title: '<5 sec',
-                subtitle: 'Instant\nDetection',
-                icon: Icons.flash_on_rounded,
-                tint: _C.amber,
-                soft: _C.amberSoft,
-              ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: w,
+            child: const _StatTile(
+              title: 'Clean BG',
+              subtitle: 'Auto\nEnhancement',
+              icon: Icons.auto_fix_high_rounded,
+              tint: _C.purple,
+              soft: _C.purpleSoft,
             ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: w,
-              child: const _StatTile(
-                title: 'Clean BG',
-                subtitle: 'Auto\nEnhancement',
-                icon: Icons.auto_fix_high_rounded,
-                tint: _C.purple,
-                soft: _C.purpleSoft,
-              ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: w,
+            child: const _StatTile(
+              title: '10x faster',
+              subtitle: 'Time Saved',
+              icon: Icons.timelapse_rounded,
+              tint: _C.green,
+              soft: _C.greenSoft,
             ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: w,
-              child: const _StatTile(
-                title: '10x faster',
-                subtitle: 'Time Saved',
-                icon: Icons.timelapse_rounded,
-                tint: _C.green,
-                soft: _C.greenSoft,
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
+          ),
+        ],
+      );
+    },
+  );
 
-  // ── Bottom Nav ─────────────────────────────────────────────────────────────
   Widget _buildBottomNav() => Container(
     decoration: BoxDecoration(
       color: _C.surface,
@@ -1338,13 +1404,13 @@ class _AiUploadScreenState extends State<AiUploadScreen>
       selectedFontSize: 11,
       unselectedFontSize: 11,
       onTap: (index) {
-        if (index == 0) {
+        if (index == 0)
           ShellNav.switchTo(context, ShellTab.dashboard);
-        } else if (index == 1) {
+        else if (index == 1)
           ShellNav.switchTo(context, ShellTab.orders);
-        } else if (index == 2) {
+        else if (index == 2)
           ShellNav.switchTo(context, ShellTab.products);
-        } else if (index == 4) {
+        else if (index == 4)
           showMoreActionsSheet(
             context: context,
             onOpenDashboard: () =>
@@ -1359,7 +1425,6 @@ class _AiUploadScreenState extends State<AiUploadScreen>
             activeModule: MoreActionsModule.aiUpload,
             onOpenAiUpload: () => ShellNav.switchTo(context, ShellTab.aiUpload),
           );
-        }
       },
       items: const [
         BottomNavigationBarItem(
@@ -1383,13 +1448,11 @@ class _AiUploadScreenState extends State<AiUploadScreen>
     ),
   );
 
-  // ── Success Dialog ─────────────────────────────────────────────────────────
   Future<void> _showSuccessDialog() async {
     final name = _nameCtrl.text.trim();
     final category = _catCtrl.text.trim();
     final price = _priceCtrl.text.trim();
     final parentCtx = context;
-
     return showDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -1400,7 +1463,6 @@ class _AiUploadScreenState extends State<AiUploadScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Green header
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
@@ -1433,10 +1495,9 @@ class _AiUploadScreenState extends State<AiUploadScreen>
                     ),
                   ),
                   const SizedBox(height: 4),
-                  // Animated check
                   TweenAnimationBuilder<double>(
                     tween: Tween(begin: 0.0, end: 1.0),
-                    duration: const Duration(milliseconds: 600),
+                    duration: const Duration(milliseconds: 650),
                     curve: Curves.elasticOut,
                     builder: (_, v, child) =>
                         Transform.scale(scale: v, child: child),
@@ -1471,7 +1532,6 @@ class _AiUploadScreenState extends State<AiUploadScreen>
                 ],
               ),
             ),
-            // Body
             Padding(
               padding: const EdgeInsets.all(18),
               child: Column(
@@ -1555,7 +1615,7 @@ class _AiUploadScreenState extends State<AiUploadScreen>
                           ),
                         ),
                         Text(
-                          price.isEmpty ? '₹0' : '₹$price',
+                          price.isEmpty ? '\u20b90' : '\u20b9$price',
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
                             color: _C.textPrimary,
@@ -1643,7 +1703,6 @@ class _AiUploadScreenState extends State<AiUploadScreen>
   }
 }
 
-// ── Step Card ──────────────────────────────────────────────────────────────────
 class _StepInfo {
   const _StepInfo({
     required this.step,
@@ -1697,111 +1756,106 @@ const List<_StepInfo> _steps = [
 class _StepCard extends StatelessWidget {
   const _StepCard({required this.step});
   final _StepInfo step;
-
   @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Container(
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+  Widget build(BuildContext context) => Stack(
+    children: [
+      Container(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+        decoration: BoxDecoration(
+          color: _C.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: _C.divider),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: step.soft,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(step.icon, color: step.color, size: 24),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              step.title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: _C.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              step.description,
+              style: const TextStyle(
+                fontSize: 12,
+                color: _C.textSecondary,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+      Positioned(
+        right: 12,
+        top: 12,
+        child: Container(
+          width: 24,
+          height: 24,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: _C.surface,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: _C.divider),
+            color: _C.accent,
+            shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+                color: _C.accent.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: step.soft,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(step.icon, color: step.color, size: 24),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                step.title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: _C.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                step.description,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: _C.textSecondary,
-                  height: 1.4,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Positioned(
-          right: 12,
-          top: 12,
-          child: Container(
-            width: 24,
-            height: 24,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _C.accent,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: _C.accent.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Text(
-              '${step.step}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 11,
-              ),
+          child: Text(
+            '${step.step}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
             ),
           ),
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
 }
 
-// ── Feature Badge ──────────────────────────────────────────────────────────────
 class _FeatureBadge extends StatelessWidget {
   const _FeatureBadge({required this.label, required this.icon});
   final String label;
   final IconData icon;
-
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
     decoration: BoxDecoration(
       gradient: const LinearGradient(
-        colors: [Color(0xFF6D28D9), Color(0xFF4C1D95)],
+        colors: [Color(0xFFEDE9FE), Color(0xFFDAD0FF)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
       borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: Colors.white.withOpacity(0.2)),
+      border: Border.all(color: _C.accentMid),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.08),
+          color: Colors.black.withOpacity(0.06),
           blurRadius: 10,
           offset: const Offset(0, 4),
         ),
@@ -1810,14 +1864,14 @@ class _FeatureBadge extends StatelessWidget {
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: Colors.white, size: 14),
+        Icon(icon, color: _C.accent, size: 14),
         const SizedBox(width: 6),
         Text(
           label,
           style: const TextStyle(
             fontSize: 11.5,
             fontWeight: FontWeight.w600,
-            color: Colors.white,
+            color: _C.textPrimary,
           ),
         ),
       ],
@@ -1825,7 +1879,6 @@ class _FeatureBadge extends StatelessWidget {
   );
 }
 
-// ── Stat Tile ──────────────────────────────────────────────────────────────────
 class _StatTile extends StatelessWidget {
   const _StatTile({
     required this.title,
@@ -1837,7 +1890,6 @@ class _StatTile extends StatelessWidget {
   final String title, subtitle;
   final IconData icon;
   final Color tint, soft;
-
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
@@ -1896,56 +1948,32 @@ class _StatTile extends StatelessWidget {
   );
 }
 
-// ── Meta Badge ─────────────────────────────────────────────────────────────────
-class _MetaBadge extends StatelessWidget {
-  const _MetaBadge({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      const Icon(Icons.check_circle_rounded, color: _C.green, size: 13),
-      const SizedBox(width: 5),
-      Text(
-        text,
-        style: const TextStyle(
-          fontSize: 11.5,
-          color: _C.textSecondary,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    ],
-  );
-}
-
 class _FeatureChip extends StatelessWidget {
   const _FeatureChip({required this.icon, required this.text});
   final IconData icon;
   final String text;
-
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
     decoration: BoxDecoration(
-      gradient: LinearGradient(
-        colors: [Colors.white.withOpacity(0.18), Colors.white.withOpacity(0.1)],
+      gradient: const LinearGradient(
+        colors: [Color(0xFFEDE9FE), Color(0xFFE0D7FF)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: Colors.white.withOpacity(0.2)),
+      border: Border.all(color: _C.accentMid),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: Colors.white),
+        Icon(icon, size: 14, color: _C.accent),
         const SizedBox(width: 6),
         Text(
           text,
           style: const TextStyle(
             fontSize: 11.5,
-            color: Colors.white,
+            color: _C.textPrimary,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -1958,58 +1986,51 @@ class _GlassCard extends StatelessWidget {
   const _GlassCard({required this.child, this.padding});
   final Widget child;
   final EdgeInsetsGeometry? padding;
-
   @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(22),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: Colors.white.withOpacity(0.18)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.12),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: child,
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(22),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+      child: Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.75),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: _C.divider),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
+        child: child,
       ),
-    );
-  }
+    ),
+  );
 }
 
 class _PressableScale extends StatefulWidget {
   const _PressableScale({required this.child, this.onTap});
   final Widget child;
   final VoidCallback? onTap;
-
   @override
   State<_PressableScale> createState() => _PressableScaleState();
 }
 
 class _PressableScaleState extends State<_PressableScale> {
   bool _pressed = false;
-
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: widget.onTap,
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      child: AnimatedScale(
-        duration: const Duration(milliseconds: 120),
-        scale: _pressed ? 0.97 : 1,
-        child: widget.child,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: widget.onTap,
+    onTapDown: (_) => setState(() => _pressed = true),
+    onTapUp: (_) => setState(() => _pressed = false),
+    onTapCancel: () => setState(() => _pressed = false),
+    child: AnimatedScale(
+      duration: const Duration(milliseconds: 120),
+      scale: _pressed ? 0.97 : 1,
+      child: widget.child,
+    ),
+  );
 }

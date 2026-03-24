@@ -12,6 +12,7 @@ import 'store_settings.dart';
 import 'notifications.dart';
 import '../services/delivery_repository.dart';
 import '../services/dashboard_repository.dart';
+import '../loading/skeleton_delivery.dart';
 import '../widgets/more_actions_sheet.dart';
 import '../widgets/top_header.dart';
 import '../widgets/shell_nav.dart';
@@ -281,7 +282,7 @@ class _DeliveryScreenState extends State<DeliveryScreen>
                     if (_error != null)
                       _buildErrorBanner()
                     else if (_loading)
-                      _buildLoadingState()
+                      const SkeletonDelivery()
                     else if (_filtered.isEmpty)
                       _buildEmptyState()
                     else

@@ -13,6 +13,7 @@ import 'notifications.dart';
 import '../services/dashboard_repository.dart';
 import '../services/orders_repository.dart';
 import '../services/products_repository.dart';
+import '../loading/skeleton_analytics.dart';
 import '../widgets/more_actions_sheet.dart';
 import '../widgets/top_header.dart';
 import '../widgets/shell_nav.dart';
@@ -301,7 +302,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                     if (_error != null)
                       _buildErrorBanner()
                     else if (_loading)
-                      _buildLoadingState()
+                      const SkeletonAnalytics()
                     else
                       FadeTransition(
                         opacity: _fadeAnimation,
