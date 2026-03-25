@@ -45,6 +45,7 @@ class CustomerRecord {
   const CustomerRecord({
     required this.name,
     required this.phone,
+    this.address = '--',
     required this.tier,
     required this.orders,
     required this.totalSpent,
@@ -53,6 +54,7 @@ class CustomerRecord {
 
   final String name;
   final String phone;
+  final String address;
   final String tier;
   final int orders;
   final double totalSpent;
@@ -147,6 +149,13 @@ class _CustomerScreenState extends State<CustomerScreen>
       'mobile_number',
       'contact',
     ], '--');
+    final address = _str(row, [
+      'address',
+      'customer_address',
+      'shipping_address',
+      'location',
+      'city',
+    ], '--');
     final tierRaw = _str(row, [
       'tier',
       'customer_tier',
@@ -179,6 +188,7 @@ class _CustomerScreenState extends State<CustomerScreen>
     return CustomerRecord(
       name: name,
       phone: phone,
+      address: address,
       tier: _normalizeTier(tierRaw),
       orders: orders,
       totalSpent: totalSpent,
@@ -1271,6 +1281,32 @@ class _CustomerList extends StatelessWidget {
   }
 }
 
+void _showCustomerDetailsDialog(BuildContext context, CustomerRecord customer) {
+  showDialog<void>(
+    context: context,
+    builder: (_) => _CustomerDetailsDialog(customer: customer),
+  );
+}
+
+String _formatMonthYear(DateTime date) {
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  final safeMonth = date.month.clamp(1, 12);
+  return '${months[safeMonth - 1]} ${date.year}';
+}
+
 class _CustomerCard extends StatelessWidget {
   const _CustomerCard({required this.customer});
   final CustomerRecord customer;
@@ -1279,118 +1315,306 @@ class _CustomerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final tierStyle = _tierStyle(customer.tier);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: _C.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _C.divider),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            // Avatar
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [_C.accentSoft, _C.accentMid],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+    return GestureDetector(
+      onTap: () => _showCustomerDetailsDialog(context, customer),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _C.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: _C.divider),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              // Avatar
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [_C.accentSoft, _C.accentMid],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: _C.accentMid),
                 ),
-                shape: BoxShape.circle,
-                border: Border.all(color: _C.accentMid),
-              ),
-              child: Center(
-                child: Text(
-                  _initials(customer.name),
-                  style: const TextStyle(
-                    color: _C.accentLight,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
+                child: Center(
+                  child: Text(
+                    _initials(customer.name),
+                    style: const TextStyle(
+                      color: _C.accentLight,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
+              const SizedBox(width: 12),
 
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          customer.name,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: _C.textPrimary,
+              // Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            customer.name,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: _C.textPrimary,
+                            ),
                           ),
                         ),
-                      ),
-                      _TierBadge(tier: customer.tier, style: tierStyle),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.phone_rounded,
-                        size: 12,
-                        color: _C.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        customer.phone,
-                        style: const TextStyle(
-                          fontSize: 12,
+                        _TierBadge(tier: customer.tier, style: tierStyle),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.phone_rounded,
+                          size: 12,
                           color: _C.textSecondary,
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      _MetaPill(
-                        Icons.shopping_bag_rounded,
-                        '${customer.orders} orders',
-                        _C.accentLight,
-                        _C.accentSoft,
-                      ),
-                      const SizedBox(width: 8),
-                      _MetaPill(
-                        Icons.currency_rupee_rounded,
-                        '₹${customer.totalSpent.toStringAsFixed(0)}',
-                        _C.green,
-                        _C.greenSoft,
-                      ),
-                    ],
-                  ),
+                        const SizedBox(width: 4),
+                        Text(
+                          customer.phone,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: _C.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        _MetaPill(
+                          Icons.shopping_bag_rounded,
+                          '${customer.orders} orders',
+                          _C.accentLight,
+                          _C.accentSoft,
+                        ),
+                        const SizedBox(width: 8),
+                        _MetaPill(
+                          Icons.currency_rupee_rounded,
+                          '₹${customer.totalSpent.toStringAsFixed(0)}',
+                          _C.green,
+                          _C.greenSoft,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Action buttons column
+              Column(
+                children: [
+                  _ActionBtn(icon: Icons.chat_rounded, onTap: () {}),
+                  const SizedBox(height: 8),
+                  _ActionBtn(icon: Icons.phone_rounded, onTap: () {}),
                 ],
               ),
-            ),
-            const SizedBox(width: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
-            // Action buttons column
-            Column(
+class _CustomerDetailsDialog extends StatelessWidget {
+  const _CustomerDetailsDialog({required this.customer});
+  final CustomerRecord customer;
+
+  @override
+  Widget build(BuildContext context) {
+    final tierStyle = _tierStyle(customer.tier);
+    final joined = _formatMonthYear(customer.joinedAt.toLocal());
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      backgroundColor: _C.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                _ActionBtn(icon: Icons.chat_rounded, onTap: () {}),
-                const SizedBox(height: 8),
-                _ActionBtn(icon: Icons.phone_rounded, onTap: () {}),
-                const SizedBox(height: 8),
-                _ActionBtn(icon: Icons.more_vert_rounded, onTap: () {}),
+                const Expanded(
+                  child: Text(
+                    'Customer Profile',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: _C.textPrimary,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                  color: _C.textSecondary,
+                  splashRadius: 18,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [_C.accentSoft, _C.accentMid],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: _C.accentMid),
+                  ),
+                  child: Center(
+                    child: Text(
+                      _initials(customer.name),
+                      style: const TextStyle(
+                        color: _C.accentLight,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              customer.name,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: _C.textPrimary,
+                              ),
+                            ),
+                          ),
+                          _TierBadge(tier: customer.tier, style: tierStyle),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.phone_rounded,
+                            size: 12,
+                            color: _C.textSecondary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            customer.phone,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: _C.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _CustomerStatCard(
+                    label: 'Orders',
+                    value: '${customer.orders}',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _CustomerStatCard(
+                    label: 'Total Spent',
+                    value: '₹${customer.totalSpent.toStringAsFixed(0)}',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            _CustomerDetailRow(
+              icon: Icons.event_rounded,
+              label: 'Customer since',
+              value: joined,
+            ),
+            const SizedBox(height: 6),
+            _CustomerDetailRow(
+              icon: Icons.star_rounded,
+              label: 'Tier',
+              value: customer.tier,
+            ),
+            const SizedBox(height: 6),
+            _CustomerDetailRow(
+              icon: Icons.place_rounded,
+              label: 'Address',
+              value: customer.address,
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.chat_rounded, size: 18),
+                    label: const Text('WhatsApp'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _C.green,
+                      side: BorderSide(color: _C.green.withOpacity(0.35)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.phone_rounded, size: 18),
+                    label: const Text('Call'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _C.textPrimary,
+                      side: BorderSide(color: _C.divider),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ],
@@ -1398,6 +1622,73 @@ class _CustomerCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CustomerStatCard extends StatelessWidget {
+  const _CustomerStatCard({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    decoration: BoxDecoration(
+      color: _C.inputFill,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: _C.divider),
+    ),
+    child: Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: _C.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: _C.textSecondary),
+        ),
+      ],
+    ),
+  );
+}
+
+class _CustomerDetailRow extends StatelessWidget {
+  const _CustomerDetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Icon(icon, size: 16, color: _C.textSecondary),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: _C.textSecondary),
+        ),
+      ),
+      Text(
+        value,
+        style: const TextStyle(
+          fontSize: 12,
+          color: _C.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ],
+  );
 }
 
 // ── Tier Badge ─────────────────────────────────────────────────────────────────
