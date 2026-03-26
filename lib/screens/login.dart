@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:bizz_grow/screens/create_account.dart';
+
 // ── Palette ────────────────────────────────────────────────────────────────────
 class _C {
   static const bg = Color(0xFFF2EEF9);
@@ -494,9 +496,15 @@ class _SellerLoginPageState extends State<SellerLoginPage>
                   const TextSpan(text: "Don't have an account? "),
                   WidgetSpan(
                     child: GestureDetector(
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const CreateAccountScreen(),
+                          ),
+                        );
+                      },
                       child: const Text(
-                        'Sign up',
+                        'Create account',
                         style: TextStyle(
                           color: _C.accentLight,
                           fontWeight: FontWeight.w800,

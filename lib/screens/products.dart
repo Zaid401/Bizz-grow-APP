@@ -16,6 +16,7 @@ import 'delivery.dart';
 import 'store_settings.dart';
 import 'notifications.dart';
 import 'AI_upload.dart';
+import '../loading/skeleton_product_loading.dart';
 import '../services/products_repository.dart';
 import '../services/dashboard_repository.dart';
 import '../widgets/more_actions_sheet.dart';
@@ -397,7 +398,7 @@ class _ProductsScreenState extends State<ProductsScreen>
                     if (_error != null)
                       _buildErrorBanner()
                     else if (_loading)
-                      _buildLoadingState()
+                      const SkeletonProductLoading()
                     else if (_filteredProducts.isEmpty)
                       _buildEmptyState()
                     else
