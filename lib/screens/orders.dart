@@ -52,6 +52,8 @@ enum OrderTimeline {
   thisMonth,
 }
 
+enum PaymentFilter { all, completed, partial, pending }
+
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
 
@@ -65,6 +67,7 @@ class _OrdersScreenState extends State<OrdersScreen>
   OrderChannel _selectedChannel = OrderChannel.all;
   OrderStatus _selectedStatus = OrderStatus.all;
   OrderTimeline _selectedTimeline = OrderTimeline.allTime;
+  PaymentFilter _selectedPayment = PaymentFilter.all;
   final TextEditingController _searchCtrl = TextEditingController();
 
   final OrdersRepository _repository = OrdersRepository();
@@ -109,10 +112,50 @@ class _OrdersScreenState extends State<OrdersScreen>
     });
     try {
       final results = await _repository.fetchOrders();
+      final enriched = await Future.wait(
+        results.map((order) async {
+          try {
+            final summary = await _repository.fetchPaymentSummaryForOrder(
+              order.id,
+            );
+            if (summary == null) return order;
+
+            final total = summary.totalAmount > 0
+                ? summary.totalAmount
+                : order.amount;
+            final paid = summary.paidAmount;
+            final remaining = summary.remainingAmount;
+            final paymentStatus = _paymentStatusFromAmounts(
+              total: total,
+              paid: paid,
+              remaining: remaining,
+            );
+
+            return OrderRecord(
+              id: order.id,
+              invoiceId: summary.invoiceId,
+              customer: order.customer,
+              phone: order.phone,
+              items: order.items,
+              amount: total,
+              paidAmount: paid,
+              remainingAmount: remaining,
+              itemLines: order.itemLines,
+              channel: order.channel,
+              status: order.status,
+              paymentStatus: paymentStatus,
+              paymentMethod: order.paymentMethod,
+              createdAt: order.createdAt,
+            );
+          } catch (_) {
+            return order;
+          }
+        }),
+      );
       final dash = await _dashboardRepository.fetch();
       if (!mounted) return;
       setState(() {
-        _orders = results;
+        _orders = enriched;
         _storeInfo = dash.storeInfo;
       });
       await _loadUnreadNotifications();
@@ -172,11 +215,14 @@ class _OrdersScreenState extends State<OrdersScreen>
       final statusOk =
           _selectedStatus == OrderStatus.all || o.status == _selectedStatus;
       final timelineOk = _matchesTimeline(o.createdAt);
+      final paymentOk =
+          _selectedPayment == PaymentFilter.all ||
+          _paymentState(o) == _selectedPayment;
       final searchOk =
           q.isEmpty ||
           o.customer.toLowerCase().contains(q) ||
           o.amount.toString().contains(q);
-      return channelOk && statusOk && timelineOk && searchOk;
+      return channelOk && statusOk && timelineOk && paymentOk && searchOk;
     }).toList();
   }
 
@@ -219,6 +265,60 @@ class _OrdersScreenState extends State<OrdersScreen>
     }
   }
 
+  String _paymentLabel(PaymentFilter p) {
+    switch (p) {
+      case PaymentFilter.all:
+        return 'All Payments';
+      case PaymentFilter.completed:
+        return 'Completed';
+      case PaymentFilter.partial:
+        return 'Partial';
+      case PaymentFilter.pending:
+        return 'Pending';
+    }
+  }
+
+  String _paymentStatusFromAmounts({
+    required double total,
+    required double paid,
+    required double remaining,
+  }) {
+    if (total <= 0) return 'pending';
+    if (paid <= 0 && remaining >= total - 0.0001) return 'pending';
+    if (remaining <= 0.0001) return 'completed';
+    if (paid > 0 && remaining > 0.0001) return 'partial';
+    return 'pending';
+  }
+
+  PaymentFilter _paymentState(OrderRecord order) {
+    final statusRaw = order.paymentStatus?.trim().toLowerCase() ?? '';
+    if (statusRaw.isNotEmpty) {
+      if (statusRaw.contains('partial')) return PaymentFilter.partial;
+      if (statusRaw.contains('paid') ||
+          statusRaw.contains('complete') ||
+          statusRaw.contains('success')) {
+        return PaymentFilter.completed;
+      }
+      if (statusRaw.contains('pending') ||
+          statusRaw.contains('due') ||
+          statusRaw.contains('unpaid')) {
+        return PaymentFilter.pending;
+      }
+    }
+    final total = order.amount;
+    final paid = order.paidAmount ?? 0;
+    final remainingRaw = order.remainingAmount ?? (total - paid);
+    final remaining = remainingRaw < 0 ? 0 : remainingRaw;
+
+    if (total <= 0) return PaymentFilter.pending;
+    if (paid <= 0 && remaining >= total - 0.0001) {
+      return PaymentFilter.pending;
+    }
+    if (remaining <= 0.0001) return PaymentFilter.completed;
+    if (paid > 0 && remaining > 0.0001) return PaymentFilter.partial;
+    return PaymentFilter.pending;
+  }
+
   void _showTimelineMenu(TapDownDetails details) async {
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final position = RelativeRect.fromRect(
@@ -246,6 +346,35 @@ class _OrdersScreenState extends State<OrdersScreen>
     );
     if (selected == null || selected == _selectedTimeline) return;
     setState(() => _selectedTimeline = selected);
+  }
+
+  void _showPaymentMenu(TapDownDetails details) async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(details.globalPosition, details.globalPosition),
+      Offset.zero & overlay.size,
+    );
+    final selected = await showMenu<PaymentFilter>(
+      context: context,
+      position: position,
+      color: _C.surface,
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      items: PaymentFilter.values
+          .map(
+            (p) => PopupMenuItem<PaymentFilter>(
+              value: p,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              child: _PaymentMenuItem(
+                label: _paymentLabel(p),
+                selected: _selectedPayment == p,
+              ),
+            ),
+          )
+          .toList(),
+    );
+    if (selected == null || selected == _selectedPayment) return;
+    setState(() => _selectedPayment = selected);
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -715,21 +844,6 @@ class _OrdersScreenState extends State<OrdersScreen>
               ),
             );
           }),
-          const SizedBox(width: 4),
-          // Broadcast / alert button
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: _C.accentSoft,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.campaign_rounded,
-              color: _C.accentLight,
-              size: 20,
-            ),
-          ),
         ],
       ),
     );
@@ -855,27 +969,50 @@ class _OrdersScreenState extends State<OrdersScreen>
           ),
         ),
         const SizedBox(width: 10),
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: _C.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _C.divider),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.tune_rounded,
-            color: _C.accentLight,
-            size: 20,
+        GestureDetector(
+          onTapDown: _showPaymentMenu,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: _C.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _C.divider),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.payments_rounded,
+                  color: _C.accentLight,
+                  size: 16,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  _paymentLabel(_selectedPayment),
+                  style: const TextStyle(
+                    color: _C.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 16,
+                  color: _C.textSecondary,
+                ),
+              ],
+            ),
           ),
         ),
+        const SizedBox(width: 8),
       ],
     );
   }
@@ -1311,6 +1448,42 @@ class _OrderCard extends StatelessWidget {
 // ── Timeline menu item ────────────────────────────────────────────────────────
 class _TimelineMenuItem extends StatelessWidget {
   const _TimelineMenuItem({required this.label, required this.selected});
+  final String label;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: selected ? _C.accentSoft : Colors.white,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          if (selected)
+            const Padding(
+              padding: EdgeInsets.only(right: 8),
+              child: Icon(Icons.check_rounded, size: 14, color: _C.accentLight),
+            ),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: selected ? _C.accentLight : _C.textPrimary,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Payment menu item ───────────────────────────────────────────────────────
+class _PaymentMenuItem extends StatelessWidget {
+  const _PaymentMenuItem({required this.label, required this.selected});
   final String label;
   final bool selected;
 

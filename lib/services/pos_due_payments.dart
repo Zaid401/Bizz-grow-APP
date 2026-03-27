@@ -58,6 +58,7 @@ class _PosDuePaymentsScreenState extends State<PosDuePaymentsScreen> {
             itemLines: order.itemLines,
             channel: order.channel,
             status: order.status,
+            paymentStatus: order.paymentStatus,
             paymentMethod: order.paymentMethod,
             createdAt: order.createdAt,
           );

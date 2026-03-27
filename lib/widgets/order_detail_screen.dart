@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:bizz_grow/models/order_types.dart';
+import 'package:bizz_grow/loading/skeleton_order_detail.dart';
 import '../services/orders_repository.dart';
 
 // ── Palette ────────────────────────────────────────────────────────────────────
@@ -128,6 +129,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
       itemLines: base.itemLines,
       channel: base.channel,
       status: base.status,
+      paymentStatus: base.paymentStatus,
       paymentMethod: base.paymentMethod,
       createdAt: base.createdAt,
     );
@@ -148,10 +150,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
             // ── Scrollable content ─────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.only(bottom: 96),
-              child: _loading && _order == null
-                  ? const Center(
-                      child: CircularProgressIndicator(color: _C.accentLight),
-                    )
+              child: _loading
+                  ? const OrderDetailSkeleton()
                   : FadeTransition(
                       opacity: _fadeAnimation,
                       child: SingleChildScrollView(

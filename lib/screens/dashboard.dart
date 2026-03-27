@@ -701,6 +701,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         Icons.auto_awesome_rounded,
         const Color(0xFFDB2777),
         const Color(0xFFFCE7F3),
+        onTap: () => ShellNav.switchTo(context, ShellTab.aiUpload),
       ),
       _ActionItem(
         'Delivery',

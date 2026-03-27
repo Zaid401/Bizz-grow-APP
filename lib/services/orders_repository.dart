@@ -16,6 +16,7 @@ class OrderRecord {
     this.itemLines,
     required this.channel,
     required this.status,
+    this.paymentStatus,
     required this.paymentMethod,
     required this.createdAt,
   });
@@ -31,6 +32,7 @@ class OrderRecord {
   final List<OrderLineItem>? itemLines;
   final OrderChannel channel;
   final OrderStatus status;
+  final String? paymentStatus;
   final String paymentMethod;
   final DateTime createdAt;
 }
@@ -578,6 +580,13 @@ class OrdersRepository {
                 row['payment_status'] ??
                 'pending')
             .toString();
+    final paymentStatus =
+        (row['payment_status'] ??
+                row['paymentStatus'] ??
+                row['payment_state'] ??
+                row['paymentState'] ??
+                '')
+            .toString();
     final payment =
         (row['payment_method'] ??
                 row['paymentMode'] ??
@@ -611,6 +620,7 @@ class OrdersRepository {
       itemLines: itemLines,
       channel: _mapChannel(channelRaw),
       status: _normalizeStatus(statusRaw),
+      paymentStatus: paymentStatus.isEmpty ? null : paymentStatus,
       paymentMethod: payment.isEmpty ? 'COD' : payment,
       createdAt: createdAt ?? DateTime.now().toUtc(),
     );

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:bizz_grow/screens/sign_up.dart';
+import 'package:bizz_grow/screens/create_account.dart';
 
 // ── Palette ────────────────────────────────────────────────────────────────────
 class _C {
@@ -22,19 +21,21 @@ class _C {
   static const greenSoft = Color(0xFFD1FAE5);
 }
 
-class SellerLoginPage extends StatefulWidget {
-  const SellerLoginPage({super.key});
+class SignUpScreen extends StatefulWidget {
+  const SignUpScreen({super.key});
 
   @override
-  State<SellerLoginPage> createState() => _SellerLoginPageState();
+  State<SignUpScreen> createState() => _SignUpScreenState();
 }
 
-class _SellerLoginPageState extends State<SellerLoginPage>
+class _SignUpScreenState extends State<SignUpScreen>
     with TickerProviderStateMixin {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
 
   bool _obscure = true;
+  bool _obscureConfirm = true;
   bool _submitting = false;
   String? _error;
 
@@ -72,13 +73,14 @@ class _SellerLoginPageState extends State<SellerLoginPage>
   void dispose() {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _confirmCtrl.dispose();
     _slideController.dispose();
     _fadeController.dispose();
     super.dispose();
   }
 
-  // ── Login ──────────────────────────────────────────────────────────────────
-  Future<void> _handleLogin() async {
+  // ── Sign Up ────────────────────────────────────────────────────────────────
+  Future<void> _handleSignUp() async {
     if (_submitting) return;
     setState(() {
       _submitting = true;
@@ -87,18 +89,42 @@ class _SellerLoginPageState extends State<SellerLoginPage>
 
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
+    final confirm = _confirmCtrl.text;
+
+    if (email.isEmpty || password.isEmpty || confirm.isEmpty) {
+      setState(() {
+        _error = 'Please fill all fields.';
+        _submitting = false;
+      });
+      return;
+    }
+    if (password.length < 6) {
+      setState(() {
+        _error = 'Password must be at least 6 characters.';
+        _submitting = false;
+      });
+      return;
+    }
+    if (password != confirm) {
+      setState(() {
+        _error = 'Passwords do not match.';
+        _submitting = false;
+      });
+      return;
+    }
 
     try {
-      await Supabase.instance.client.auth.signInWithPassword(
+      await Supabase.instance.client.auth.signUp(
         email: email,
         password: password,
       );
+
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const CreateAccountScreen()),
+      );
     } on AuthException catch (e) {
-      final msg = e.message.contains('API key')
-          ? 'Invalid Supabase API key. Update SUPABASE_ANON_KEY in .env. '
-                'Loaded key: ${_maskKey(dotenv.env['SUPABASE_ANON_KEY']?.trim())}'
-          : e.message;
-      setState(() => _error = msg);
+      setState(() => _error = e.message);
     } catch (_) {
       setState(() => _error = 'Unexpected error. Please try again.');
     } finally {
@@ -137,7 +163,7 @@ class _SellerLoginPageState extends State<SellerLoginPage>
                     opacity: _fadeAnimation,
                     child: SlideTransition(
                       position: _slideAnimation,
-                      child: _buildLoginCard(),
+                      child: _buildSignUpCard(),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -156,7 +182,7 @@ class _SellerLoginPageState extends State<SellerLoginPage>
     return Row(
       children: [
         GestureDetector(
-          onTap: () {},
+          onTap: () => Navigator.of(context).pop(),
           child: Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -178,7 +204,7 @@ class _SellerLoginPageState extends State<SellerLoginPage>
           fit: BoxFit.contain,
         ),
         const Spacer(),
-        const SizedBox(width: 40), // balance the back button
+        const SizedBox(width: 40),
       ],
     );
   }
@@ -187,7 +213,6 @@ class _SellerLoginPageState extends State<SellerLoginPage>
   Widget _buildHeroSection() {
     return Column(
       children: [
-        // Decorative orb behind icon
         Stack(
           alignment: Alignment.center,
           children: [
@@ -235,7 +260,7 @@ class _SellerLoginPageState extends State<SellerLoginPage>
         ),
         const SizedBox(height: 18),
         const Text(
-          'Welcome Back',
+          'Create Account',
           style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w800,
@@ -245,15 +270,16 @@ class _SellerLoginPageState extends State<SellerLoginPage>
         ),
         const SizedBox(height: 6),
         Text(
-          'Sign in to manage your store',
+          'Join BizGrow 360 and grow your business',
           style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.65)),
+          textAlign: TextAlign.center,
         ),
       ],
     );
   }
 
-  // ── Login Card ─────────────────────────────────────────────────────────────
-  Widget _buildLoginCard() {
+  // ── Sign Up Card ───────────────────────────────────────────────────────────
+  Widget _buildSignUpCard() {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -275,7 +301,6 @@ class _SellerLoginPageState extends State<SellerLoginPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Card header
           Row(
             children: [
               const Expanded(
@@ -283,7 +308,7 @@ class _SellerLoginPageState extends State<SellerLoginPage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Seller Login',
+                      'Set up your account',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
@@ -293,7 +318,7 @@ class _SellerLoginPageState extends State<SellerLoginPage>
                     ),
                     SizedBox(height: 3),
                     Text(
-                      'Enter your credentials to continue',
+                      'Use your email and password to continue',
                       style: TextStyle(fontSize: 12, color: _C.textSecondary),
                     ),
                   ],
@@ -311,7 +336,7 @@ class _SellerLoginPageState extends State<SellerLoginPage>
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.lock_rounded, size: 11, color: _C.accentLight),
+                    Icon(Icons.verified_user, size: 11, color: _C.accentLight),
                     SizedBox(width: 4),
                     Text(
                       'Secure',
@@ -331,7 +356,6 @@ class _SellerLoginPageState extends State<SellerLoginPage>
           Container(height: 1, color: _C.divider),
           const SizedBox(height: 22),
 
-          // Email field
           _fieldLabel(Icons.email_rounded, 'Email Address'),
           const SizedBox(height: 8),
           _buildTextField(
@@ -343,7 +367,6 @@ class _SellerLoginPageState extends State<SellerLoginPage>
 
           const SizedBox(height: 18),
 
-          // Password field
           _fieldLabel(Icons.lock_rounded, 'Password'),
           const SizedBox(height: 8),
           _buildTextField(
@@ -371,28 +394,37 @@ class _SellerLoginPageState extends State<SellerLoginPage>
             ),
           ),
 
-          // Forgot password
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: GestureDetector(
-                onTap: () {},
-                child: const Text(
-                  'Forgot password?',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: _C.accentLight,
-                  ),
+          const SizedBox(height: 18),
+
+          _fieldLabel(Icons.lock_outline_rounded, 'Confirm Password'),
+          const SizedBox(height: 8),
+          _buildTextField(
+            controller: _confirmCtrl,
+            hint: '••••••••',
+            obscure: _obscureConfirm,
+            prefixIcon: Icons.key_rounded,
+            suffix: GestureDetector(
+              onTap: () => setState(() => _obscureConfirm = !_obscureConfirm),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                margin: const EdgeInsets.only(right: 6),
+                decoration: BoxDecoration(
+                  color: _C.accentSoft,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(
+                  _obscureConfirm
+                      ? Icons.visibility_rounded
+                      : Icons.visibility_off_rounded,
+                  size: 16,
+                  color: _C.accentLight,
                 ),
               ),
             ),
           ),
 
-          const SizedBox(height: 22),
+          const SizedBox(height: 20),
 
-          // Error banner
           if (_error != null) ...[
             Container(
               padding: const EdgeInsets.all(12),
@@ -425,9 +457,8 @@ class _SellerLoginPageState extends State<SellerLoginPage>
             ),
           ],
 
-          // Sign In button
           GestureDetector(
-            onTap: _submitting ? null : _handleLogin,
+            onTap: _submitting ? null : _handleSignUp,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               height: 54,
@@ -465,13 +496,13 @@ class _SellerLoginPageState extends State<SellerLoginPage>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons.login_rounded,
+                            Icons.person_add_rounded,
                             color: Colors.white,
                             size: 18,
                           ),
                           SizedBox(width: 10),
                           Text(
-                            'Sign In',
+                            'Create Account',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 16,
@@ -485,26 +516,19 @@ class _SellerLoginPageState extends State<SellerLoginPage>
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
 
-          // Sign up link
           Center(
             child: RichText(
               text: TextSpan(
                 style: const TextStyle(fontSize: 13, color: _C.textSecondary),
                 children: [
-                  const TextSpan(text: "Don't have an account? "),
+                  const TextSpan(text: 'Already have an account? '),
                   WidgetSpan(
                     child: GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const SignUpScreen(),
-                          ),
-                        );
-                      },
+                      onTap: () => Navigator.of(context).pop(),
                       child: const Text(
-                        'Create account',
+                        'Sign in',
                         style: TextStyle(
                           color: _C.accentLight,
                           fontWeight: FontWeight.w800,
@@ -526,7 +550,6 @@ class _SellerLoginPageState extends State<SellerLoginPage>
   Widget _buildFooter() {
     return Column(
       children: [
-        // Divider with label
         Row(
           children: [
             Expanded(
@@ -538,7 +561,7 @@ class _SellerLoginPageState extends State<SellerLoginPage>
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text(
-                'or',
+                'or continue with',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.4),
                   fontSize: 12,
@@ -555,38 +578,25 @@ class _SellerLoginPageState extends State<SellerLoginPage>
           ],
         ),
         const SizedBox(height: 16),
-
-        // Want to list your store
-        Text(
-          'Want to list your store?',
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.6),
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Join as Retailer
         GestureDetector(
           onTap: () {},
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 15),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.2)),
+              border: Border.all(color: _C.divider),
             ),
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.store_rounded, color: Colors.white, size: 18),
-                SizedBox(width: 10),
+                Icon(Icons.g_mobiledata, color: _C.textSecondary, size: 20),
+                SizedBox(width: 8),
                 Text(
-                  'Join as Retailer',
+                  'Sign up with Google',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: _C.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
@@ -594,14 +604,6 @@ class _SellerLoginPageState extends State<SellerLoginPage>
               ],
             ),
           ),
-        ),
-        const SizedBox(height: 20),
-
-        // Terms
-        Text(
-          'By signing in you agree to our Terms & Privacy Policy',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 11),
         ),
       ],
     );
@@ -690,11 +692,4 @@ class _SellerLoginPageState extends State<SellerLoginPage>
       ),
     );
   }
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-String _maskKey(String? key) {
-  if (key == null || key.isEmpty) return 'empty';
-  if (key.length <= 12) return '${key.substring(0, 3)}...';
-  return '${key.substring(0, 4)}...${key.substring(key.length - 4)} (len ${key.length})';
 }
